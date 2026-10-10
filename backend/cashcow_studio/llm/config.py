@@ -15,6 +15,10 @@ from typing import Any
 
 import yaml
 
+# Re-exported: the storyboard stage and older callers import these from here.
+from ..models.transitions import Transition as Transition
+from ..models.transitions import TransitionCatalog as TransitionCatalog
+
 LLM_FILE = "llm.yaml"
 VOICE_FILE = "voice.yaml"
 TRANSITIONS_FILE = "transitions.yaml"
@@ -192,72 +196,15 @@ def speaking_rate_wpm(language: str | None, override: int | None = None) -> int:
 
 
 # Transitions -------------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class Transition:
-    type: str
-    label: str
-    duration_s: float
-
-
-@dataclass(frozen=True)
-class TransitionCatalog:
-    transitions: tuple[Transition, ...]
-    default: str
-    last_scene: str
-    shorts_duration_factor: float
-
-    @property
-    def types(self) -> list[str]:
-        return [t.type for t in self.transitions]
-
-    def get(self, type_name: str) -> Transition | None:
-        for transition in self.transitions:
-            if transition.type == type_name:
-                return transition
-        return None
-
-    def duration_for(self, type_name: str, fmt: str = "long") -> float:
-        transition = self.get(type_name) or self.get(self.default)
-        base = transition.duration_s if transition else 0.6
-        if fmt == "shorts":
-            base *= self.shorts_duration_factor
-        return round(base, 2)
+# config/transitions.yaml v2 (packs, energy, easing, engine params, the legacy xfade names);
+# the shapes and the lookups live in models/transitions.py, shared with the preview tool.
 
 
 @lru_cache(maxsize=1)
 def transition_catalog() -> TransitionCatalog:
-    data = load_yaml(TRANSITIONS_FILE)
-    rows = []
-    for raw in data.get("transitions") or []:
-        if not isinstance(raw, dict) or not raw.get("type"):
-            continue
-        rows.append(
-            Transition(
-                type=str(raw["type"]),
-                label=str(raw.get("label") or raw["type"]),
-                duration_s=float(raw.get("duration_s") or 0.6),
-            )
-        )
-    if not rows:
-        rows = [
-            Transition("fade", "Cross fade", 0.6),
-            Transition("fadeblack", "Fade to black", 0.8),
-        ]
-    types = {t.type for t in rows}
-    default = str(data.get("default") or rows[0].type)
-    if default not in types:
-        default = rows[0].type
-    last = str(data.get("last_scene") or default)
-    if last not in types:
-        last = default
-    return TransitionCatalog(
-        transitions=tuple(rows),
-        default=default,
-        last_scene=last,
-        shorts_duration_factor=float(data.get("shorts_duration_factor") or 0.6),
-    )
+    """``config/transitions.yaml`` as a :class:`TransitionCatalog` (cached; see
+    :func:`clear_caches`). A missing or half-broken file still gives a working catalogue."""
+    return TransitionCatalog.from_mapping(load_yaml(TRANSITIONS_FILE))
 
 
 def clear_caches() -> None:

@@ -140,9 +140,11 @@ export type ChannelFormat = VideoFormat;
 // Added in M1/M2: stage actions, WebSocket events and small helpers.
 // ---------------------------------------------------------------------------
 
-/** Body of the approve / redo / skip stage calls. */
+/**
+ * Body of the approve / redo / skip stage calls. Who acts is the signed-in person: the server
+ * takes it from the session (docs/M5A-CONTRACT.md rule 4), so the page never sends a name.
+ */
 export interface StageActionBody {
-  by: string;
   notes?: string;
   edits?: Record<string, unknown>;
 }

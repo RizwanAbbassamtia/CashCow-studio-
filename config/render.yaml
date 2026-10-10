@@ -85,3 +85,44 @@ captions:
   margin_v_px: 60           # at 1080p; the ASS file scales with the frame
   outline: 2
   shadow: 0
+
+# Camera moves over each picture (Motion v2, render/motion.py; maths in
+# docs/design/MOTION-PARITY.md). Every move eases in and out between its start and end
+# framing; the presets (zoom, pan, drift, tilt, dolly, handheld ...) live in render/motion.py.
+motion:
+  style: ken_burns          # default for new videos: ken_burns or parallax. A channel's
+                            # images.motion_style and a storyboard's own choice win.
+  easing: ease_in_out_cubic
+  handheld_amplitude: 0.004 # the handheld wobble: at most 0.4 % of the visible width
+  interpolation: lanczos    # Ken Burns frames drawn in Python: lanczos (sharpest), cubic,
+                            # linear (FFmpeg zoompan draws them unless clips.ken_burns: python)
+  proxy_interpolation: linear
+
+# 2.5D parallax: near things move more than far things as the camera moves. Needs the depth
+# model below (downloaded once from Settings > Render); without it those scenes use the
+# Ken Burns move and the edit review says so.
+parallax:
+  strength: 0.035           # how far (share of the frame width) the nearest things move
+                            # against the farthest during a typical pan
+  interpolation: cubic      # cubic keeps parallax within twice the cost of Ken Burns
+  grid_step_px: 8           # depth displacement worked out every 8 px at 1080p (scaled)
+  iterations: 2
+  inpaint_radius: 3         # background filled in behind near objects (TELEA radius)
+  object_scale: 0.25        # near objects up to this share of the short side get a layer
+  layer_threshold: 0.08     # how much nearer than its surroundings an object must be
+  edge_threshold: 0.1       # how sharp its depth edge must be
+  max_overscan: 0.03        # windows tighten by at most 3 % so no edge pixels smear in
+  mesh: [64, 36]            # the browser preview's displacement mesh (M5)
+  depth_model:
+    id: depth-anything-v2-small
+    label: Depth Anything V2 Small
+    file: depth_anything_v2_small.onnx
+    # ONNX export by onnx-community of depth-anything/Depth-Anything-V2-Small (Apache-2.0),
+    # pinned to one revision; the SHA-256 is checked after the download.
+    url: https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/4472b7362082ad9968fee890ca0f1e5aca36b93d/onnx/model.onnx
+    sha256: afb6a5c28f3b6bf1618c6e43f02073ef9dfdc70e937502d51603e57b0a1df10c
+    size_bytes: 99060839
+    license: Apache-2.0
+    source: https://huggingface.co/onnx-community/depth-anything-v2-small
+    input_size: 518         # the short side the model sees (a multiple of 14)
+    threads: 0              # 0 = half the logical cores, at most 4

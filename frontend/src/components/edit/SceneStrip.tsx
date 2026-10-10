@@ -1,5 +1,5 @@
 import { ImageIcon, Lock, MessageSquare } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { cn } from "../../lib/cn";
 import type { StoryboardAspect } from "../../types/storyboard";
@@ -12,6 +12,8 @@ export interface SceneStripItem {
   /** resolved http(s) URL of the scene picture (06_images), or null for a placeholder */
   thumbUrl: string | null;
   transition: string | null;
+  /** the transition's name for people ("Film dissolve"); the id is used when missing */
+  transitionName?: string;
   popupText: string | null;
   locked: boolean;
 }
@@ -22,6 +24,8 @@ export interface SceneStripProps {
   currentTime: number;
   aspect: StoryboardAspect | null;
   onSeek: (scene: SceneStripItem) => void;
+  /** drawn after each scene: the cut into the next one (after the last scene: the ending) */
+  renderCut?: (scene: SceneStripItem, position: number) => ReactNode;
   className?: string;
 }
 
@@ -57,7 +61,7 @@ function Thumb({ scene, portrait }: { scene: SceneStripItem; portrait: boolean }
  * One thumbnail per scene under the player, in time order. Clicking a scene seeks the
  * player to its start; the scene playing right now is outlined.
  */
-export function SceneStrip({ scenes, currentTime, aspect, onSeek, className }: SceneStripProps) {
+export function SceneStrip({ scenes, currentTime, aspect, onSeek, renderCut, className }: SceneStripProps) {
   const active = sceneIndexAt(scenes, currentTime);
   const portrait = aspect === "9:16";
   const activeRef = useRef<HTMLButtonElement | null>(null);
@@ -74,27 +78,32 @@ export function SceneStrip({ scenes, currentTime, aspect, onSeek, className }: S
     <ul className={cn("flex gap-2 overflow-x-auto pb-2", className)} aria-label="Scenes">
       {scenes.map((scene, position) => {
         const isActive = position === active;
+        const cut = renderCut ? renderCut(scene, position) : null;
+        const transitionText = scene.transitionName ?? (scene.transition ? transitionLabel(scene.transition) : "");
         return (
-          <li key={`${scene.index}-${scene.start_s}`} className="shrink-0">
-            <button
-              ref={isActive ? activeRef : undefined}
-              type="button"
-              onClick={() => onSeek(scene)}
-              title={`Scene ${scene.index + 1}: ${formatClock(scene.start_s)} to ${formatClock(scene.end_s)}${scene.transition ? `, then ${transitionLabel(scene.transition).toLowerCase()}` : ""}`}
-              aria-current={isActive ? "true" : undefined}
-              className={cn(
-                "flex flex-col gap-1 rounded-md border p-1 text-left transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60",
-                isActive ? "border-accent bg-accent/10" : "border-line bg-surface hover:border-line-strong",
-              )}
-            >
-              <Thumb scene={scene} portrait={portrait} />
-              <span className="flex items-center justify-between gap-2 px-0.5 text-[11px] tabular-nums text-ink-muted">
-                <span>{formatClock(scene.start_s)}</span>
-                <span className="text-ink-faint">{(scene.end_s - scene.start_s).toFixed(1)} s</span>
-              </span>
-            </button>
-          </li>
+          <Fragment key={`${scene.index}-${scene.start_s}`}>
+            <li className="shrink-0">
+              <button
+                ref={isActive ? activeRef : undefined}
+                type="button"
+                onClick={() => onSeek(scene)}
+                title={`Scene ${scene.index + 1}: ${formatClock(scene.start_s)} to ${formatClock(scene.end_s)}${transitionText ? `, then ${transitionText.toLowerCase()}` : ""}`}
+                aria-current={isActive ? "true" : undefined}
+                className={cn(
+                  "flex flex-col gap-1 rounded-md border p-1 text-left transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60",
+                  isActive ? "border-accent bg-accent/10" : "border-line bg-surface hover:border-line-strong",
+                )}
+              >
+                <Thumb scene={scene} portrait={portrait} />
+                <span className="flex items-center justify-between gap-2 px-0.5 text-[11px] tabular-nums text-ink-muted">
+                  <span>{formatClock(scene.start_s)}</span>
+                  <span className="text-ink-faint">{(scene.end_s - scene.start_s).toFixed(1)} s</span>
+                </span>
+              </button>
+            </li>
+            {cut ? <li className="flex shrink-0 items-center">{cut}</li> : null}
+          </Fragment>
         );
       })}
     </ul>

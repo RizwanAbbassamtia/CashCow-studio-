@@ -11,6 +11,20 @@ section 11) are saved whole under the same keys in ``settings.json``; a missing 
 writing-model client, the research source and the parallel limit are rebuilt on the engine,
 also when only an API key changed (the clients hold the key they were built with).
 ``providers`` is read-only: what each part of the pipeline will use right now.
+
+Anyone signed in may read the settings (keys stay masked); only an admin may change them
+(docs/M5A-CONTRACT.md section 1). A saved change is written to the activity log as
+``settings.update`` (folders and sections) and ``keys.update`` (key names only, never a value).
+
+The team's accounts live in the shared folder (``team/users/``), so choosing another shared
+folder moves the sign-in roster too. When the new folder has no accounts yet, the current ones
+are copied there first, so the admin making the change is not locked out. When it has its own
+accounts, those apply from the next request on: every session made for an account that is not
+in that folder (the same account, not just the same name) ends. Two cases answer ``409`` with
+a plain explanation unless the body says ``confirm_team_folder: true``: the folder's accounts
+do not include the admin making the change (they would be signed out), and the folder holds
+channels but no account (Google Drive may still be downloading the accounts). A folder with
+team files but no account yet, or with accounts that cannot be read, is refused (``422``).
 """
 
 from __future__ import annotations
@@ -23,6 +37,17 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ValidationError
 
+from ..auth import machine_name
+from ..auth.middleware import SessionUser, user_store_for
+from ..auth.users import (
+    NeedsConfirmation,
+    RosterReadOnly,
+    UserStore,
+    UserStoreError,
+    can_sign_in_on,
+    same_account,
+    same_path,
+)
 from ..config import (
     NESTED_KEYS,
     NESTED_MODELS,
@@ -41,7 +66,7 @@ from ..storage.settings_store import (
     SettingsStore,
     validate_key_name,
 )
-from .deps import SettingsDep, SettingsStoreDep
+from .deps import AdminUser, SettingsDep, SettingsStoreDep, audit
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +131,15 @@ class SettingsUpdate(BaseModel):
     voice: dict[str, Any] | None = None
     render: dict[str, Any] | None = None
     captions: dict[str, Any] | None = None
+    confirm_team_folder: bool = False
+    """The admin read the ``409`` about the new shared folder's accounts and goes ahead."""
+
+
+OTHER_TEAM_MESSAGE = (
+    "The folder {folder} already holds a team account list, and your account ({username}) is "
+    "not in it. If you switch to it, everyone signed in on this laptop is signed out, and only "
+    "the accounts in that folder can sign in here."
+)
 
 
 def _effective_llm(settings: Settings) -> LlmSettings:
@@ -165,7 +199,7 @@ def _view(settings: Settings, store: SettingsStore) -> SettingsView:
     )
 
 
-def _folder_value(key: str, raw: str | None) -> str | None:
+def folder_value(key: str, raw: str | None) -> str | None:
     """Validate a folder typed by the user; ``None``/blank means "use the default"."""
     if raw is None or not raw.strip():
         return None
@@ -228,6 +262,78 @@ def _apply_runtime(request: Request, settings: Settings) -> None:
         log.exception("The pipeline could not pick up the new settings; restart the app")
 
 
+def _carry_team_accounts(
+    request: Request,
+    settings: Settings,
+    admin: SessionUser,
+    value: str | None,
+    *,
+    confirmed: bool,
+) -> None:
+    """Copy the team's accounts into a newly chosen shared folder that has none yet.
+
+    Raises a 409 (nothing changed) when the change needs ``confirm_team_folder``, and a 422
+    (nothing changed) when the new folder's accounts cannot be read, are still on their way,
+    or cannot be written there.
+    """
+    new_shared = Path(value) if value else settings.app_data_dir / "shared"
+    if same_path(new_shared, settings.resolved_shared_dir):
+        return
+    current = user_store_for(request.app)
+    try:
+        new_shared.mkdir(parents=True, exist_ok=True)
+        target = UserStore(new_shared, settings.app_data_dir)
+        theirs = target.refresh()
+        if theirs.state == "ok":
+            mine = current.get(admin.username)
+            same = theirs.users.get(admin.username)
+            keeps_session = (
+                mine is not None
+                and same is not None
+                and same_account(mine, same)
+                and same.role == "admin"
+                and can_sign_in_on(same, machine_name())
+            )
+            if not keeps_session and not confirmed:
+                raise HTTPException(
+                    status_code=409,
+                    detail=OTHER_TEAM_MESSAGE.format(folder=new_shared, username=admin.username),
+                )
+            return
+        current.carry_over_to(target, confirmed=confirmed)
+    except NeedsConfirmation as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RosterReadOnly as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (UserStoreError, OSError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"The team's accounts could not be copied to the new shared folder ({exc}), "
+            "so the folder was not changed. Check that the folder exists and can be written to.",
+        ) from exc
+
+
+def _audit_settings(
+    request: Request,
+    admin: SessionUser,
+    body: SettingsUpdate,
+    folders: dict[str, str | None],
+    nested: dict[str, BaseModel],
+) -> None:
+    if body.keys:
+        names = sorted(body.keys)
+        cleared = [n for n in names if body.keys[n] is None or not str(body.keys[n]).strip()]
+        saved = [n for n in names if n not in cleared]
+        audit(request, admin, "keys.update", detail={"set": saved, "cleared": cleared})
+    if folders or nested:
+        detail: dict[str, Any] = {}
+        if folders:
+            detail["folders"] = {key: value or "default" for key, value in folders.items()}
+        if nested:
+            detail["sections"] = sorted(nested)
+        audit(request, admin, "settings.update", detail=detail)
+
+
 @router.get("/settings", response_model=SettingsView)
 def read_settings(settings: SettingsDep, store: SettingsStoreDep) -> SettingsView:
     return _view(settings, store)
@@ -235,7 +341,11 @@ def read_settings(settings: SettingsDep, store: SettingsStoreDep) -> SettingsVie
 
 @router.put("/settings", response_model=SettingsView)
 def update_settings(
-    body: SettingsUpdate, request: Request, settings: SettingsDep, store: SettingsStoreDep
+    body: SettingsUpdate,
+    request: Request,
+    admin: AdminUser,
+    settings: SettingsDep,
+    store: SettingsStoreDep,
 ) -> SettingsView:
     for name in body.keys or ():
         try:
@@ -245,7 +355,7 @@ def update_settings(
     # Check every folder and every nested object before changing anything, so a bad one
     # leaves the rest untouched.
     folders = {
-        key: _folder_value(key, getattr(body, key))
+        key: folder_value(key, getattr(body, key))
         for key in PATH_KEYS
         if key in body.model_fields_set
     }
@@ -258,6 +368,14 @@ def update_settings(
     # One lock for the files and the in-memory settings: two overlapping saves cannot lose
     # each other's change, and settings.json cannot drift from app.state.settings.
     with settings_store.LOCK:
+        if "shared_dir" in folders:
+            _carry_team_accounts(
+                request,
+                settings,
+                admin,
+                folders["shared_dir"],
+                confirmed=body.confirm_team_folder,
+            )
         if body.keys:
             try:
                 store.update_keys(body.keys)
@@ -294,4 +412,5 @@ def update_settings(
             # A replaced API key must reach the running pipeline too, not only a changed
             # model or provider choice: the clients are rebuilt with the new environment.
             _apply_runtime(request, settings)
+        _audit_settings(request, admin, body, folders, nested)
         return _view(settings, store)

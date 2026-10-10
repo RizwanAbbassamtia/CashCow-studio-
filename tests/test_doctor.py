@@ -22,6 +22,7 @@ EXPECTED_IDS = [
     "yt_dlp",
     "webview2",
     "shared_dir",
+    "team_roster",
     "projects_dir",
     "exports_dir",
     "anthropic_key",
@@ -146,7 +147,11 @@ def test_system_info_shape(client: TestClient, app_env: AppEnv) -> None:
         "shared_dir_is_default",
         "projects_dir",
         "exports_dir",
+        "machine",
+        "auth_required",
     }
+    assert body["auth_required"] is True
+    assert body["machine"]
     assert body["app_data_dir"] == str(app_env.app_data_dir)
     assert body["shared_dir_is_default"] is False
     assert body["python"].startswith("3.")

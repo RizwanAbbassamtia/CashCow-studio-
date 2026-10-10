@@ -15,6 +15,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .transitions import DEFAULT_MOTION_STYLE, MotionStyle
+
 Aspect = Literal["16:9", "9:16"]
 PopupAnim = Literal["slide_left", "fade", "pop"]
 RenderStatus = Literal["not_rendered", "queued", "rendering", "done", "failed"]
@@ -52,21 +54,138 @@ class MusicTrack(BaseModel):
     license_ok: bool = False
 
 
+# Motion v2 (docs/TRANSITIONS-V2-CONTRACT.md section 2): how the camera moves over a picture.
+# ``ken_burns`` pans and zooms the flat picture (eased); ``parallax`` adds 2.5D depth from the
+# depth model and falls back to ``ken_burns`` (saying so in the edit review) without it.
+DEFAULT_PARALLAX_STRENGTH = 0.035
+_MOTION_STYLE_ALIASES: dict[str, MotionStyle] = {
+    "ken_burns": "ken_burns",
+    "kenburns": "ken_burns",
+    "kb": "ken_burns",
+    "pan_and_zoom": "ken_burns",
+    "flat": "ken_burns",
+    "parallax": "parallax",
+    "2.5d": "parallax",
+    "2_5d": "parallax",
+    "2.5d_parallax": "parallax",
+    "depth": "parallax",
+}
+
+
+def normalize_motion_style(value: Any) -> MotionStyle:
+    """``"Ken Burns"``, ``"kenburns"`` -> ``ken_burns``; ``"2.5D parallax"`` -> ``parallax``;
+    empty or unknown -> :data:`DEFAULT_MOTION_STYLE`."""
+    key = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return _MOTION_STYLE_ALIASES.get(key, DEFAULT_MOTION_STYLE)
+
+
 class TimelineMotion(BaseModel):
     preset: str = "hold"
     start_rect: list[float] = Field(description="[x, y, w, h] in source-image pixels")
     end_rect: list[float] = Field(description="[x, y, w, h] in source-image pixels")
+    style: MotionStyle = Field(
+        default=DEFAULT_MOTION_STYLE,
+        description="ken_burns (eased pan and zoom) or parallax (2.5D depth; needs the depth "
+        "model, else rendered as ken_burns)",
+    )
+    strength: float = Field(
+        default=DEFAULT_PARALLAX_STRENGTH,
+        ge=0.0,
+        le=0.2,
+        description="parallax only: share of the frame width the nearest things move against "
+        "the farthest during a typical pan",
+    )
 
     @field_validator("start_rect", "end_rect", mode="before")
     @classmethod
     def _rects(cls, value: Any) -> list[float]:
         return _check_rect(value)
 
+    @field_validator("style", mode="before")
+    @classmethod
+    def _style(cls, value: Any) -> MotionStyle:
+        return normalize_motion_style(value)
+
+
+# Transitions v2 (docs/TRANSITIONS-V2-CONTRACT.md section 1): the ids the transition engine
+# (render/transitions/) can draw. Older timeline.json files carry FFmpeg xfade names; they are
+# mapped to their v2 look when the file is read, and anything unknown becomes a film dissolve.
+TRANSITION_IDS: tuple[str, ...] = (
+    "film_dissolve",
+    "dip_black",
+    "dip_white",
+    "blur_dissolve",
+    "zoom_through",
+    "push_left",
+    "push_right",
+    "push_up",
+    "push_down",
+    "whip_left",
+    "whip_right",
+    "whip_up",
+    "whip_down",
+    "luma_wipe_left",
+    "luma_wipe_right",
+    "luma_wipe_up",
+    "luma_wipe_down",
+    "luma_wipe_diag",
+    "crosswarp",
+    "directional_warp",
+    "light_leak_warm",
+    "film_burn",
+    "glitch_subtle",
+    "spin_zoom",
+    "morph_blend",
+    "cube_left",
+    "cube_right",
+)
+DEFAULT_TRANSITION = "film_dissolve"
+LEGACY_TRANSITIONS: dict[str, str] = {
+    "fade": "film_dissolve",
+    "wipeleft": "luma_wipe_left",
+    "slideleft": "push_left",
+    "zoomin": "zoom_through",
+    "fadeblack": "dip_black",
+    "fadewhite": "dip_white",
+}
+
+
+def _catalogue_legacy(name: str) -> str | None:
+    """The ``legacy`` table of ``config/transitions.yaml`` (wiperight, slideup ...), read
+    lazily so this model stays importable without the config folder."""
+    try:
+        from ..llm.config import transition_catalog
+
+        return transition_catalog().resolve(name)
+    except Exception:  # noqa: BLE001 - the contract's own table below still applies
+        return None
+
+
+def normalize_transition_id(value: Any) -> str:
+    """A v2 transition id for ``value``: v2 ids pass through, old xfade names map to their
+    v2 look (the contract's table, extended by the catalogue's ``legacy`` table), anything
+    else becomes :data:`DEFAULT_TRANSITION`."""
+    text = str(value or "").strip()
+    if text in TRANSITION_IDS:
+        return text
+    key = text.lower().replace("-", "_").replace(" ", "_")
+    if key in TRANSITION_IDS:
+        return key
+    if key in LEGACY_TRANSITIONS:
+        return LEGACY_TRANSITIONS[key]
+    resolved = _catalogue_legacy(text) if text else None
+    return resolved if resolved in TRANSITION_IDS else DEFAULT_TRANSITION
+
 
 class TimelineTransition(BaseModel):
-    type: str = "fade"
-    """An xfade transition name from config/transitions.yaml."""
+    type: str = DEFAULT_TRANSITION
+    """A transition id of the v2 engine (render/transitions/); old xfade names are mapped."""
     duration_s: float = Field(default=0.6, ge=0)
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _v2_type(cls, value: Any) -> str:
+        return normalize_transition_id(value)
 
 
 class TimelineScene(BaseModel):
@@ -251,6 +370,12 @@ class RenderOutput(BaseModel):
     width: int | None = None
     height: int | None = None
     rendered_at: str | None = None
+    # Transitions v2 (cached scene clips): what the last render could reuse.
+    scene_clips_total: int | None = None
+    scene_clips_reused: int | None = None
+    reuse_note: str | None = Field(
+        default=None, description='plain English, e.g. "Reused 2 of 3 scene clips."'
+    )
 
 
 class MusicTrackInfo(BaseModel):
@@ -306,3 +431,8 @@ class EditReviewPayload(BaseModel):
     gate_results: list[dict[str, Any]] = []
     render_log_path: str | None = None
     timing_source: str | None = None
+    render_notes: list[str] = Field(
+        default=[],
+        description="plain-English notes on the last renders (clips reused, parallax "
+        "fallbacks)",
+    )

@@ -457,6 +457,27 @@ def test_ai_pick_runs_through_every_stage_to_the_export(
     assert rows[0]["current_stage"] == "export" and rows[0]["status"] == "done"
     assert rows[0]["title"] == chosen_title
 
+    # Who did what (docs/M5A-CONTRACT.md): every approval and the export itself are in the
+    # activity log under the signed-in admin on this laptop (the "by" the client sent is
+    # ignored), and the export is one row of the Production log, also as CSV.
+    machine = api.get("/api/system/info").json()["machine"]
+    audit_rows = api.get(f"/api/audit?project_id={created['id']}").json()
+    actions = [row["action"] for row in audit_rows]
+    assert actions.count("stage.approve") == 7
+    assert actions.count("export.done") == 1 and "project.create" in actions
+    assert {row["user"] for row in audit_rows} == {"imran"}
+    assert {row["machine"] for row in audit_rows} == {machine}
+    log = api.get("/api/production-log").json()
+    assert [row["project_id"] for row in log] == [created["id"]]
+    entry = log[0]
+    assert entry["user"] == "imran" and entry["machine"] == machine
+    assert entry["channel_slug"] == SLUG and Path(entry["export_folder"]) == exported
+    assert sorted(entry["presets"]) == sorted(E2E_PRESETS)
+    videos = [exported / f"{slug}_{preset}.mp4" for preset in E2E_PRESETS]
+    assert entry["size_bytes"] == sum(video.stat().st_size for video in videos)
+    assert entry["duration_s"] and entry["duration_s"] > 0
+    assert created["id"] in api.get("/api/production-log.csv").text
+
     # The picked competitor video is now "used before" for this channel: it drops out of the
     # eligible list (excluded videos are listed after the eligible ones, so ask for them all).
     candidates = api.get(f"/api/channels/{SLUG}/research/candidates?format=long&limit=500").json()

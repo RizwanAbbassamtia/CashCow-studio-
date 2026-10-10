@@ -1,4 +1,4 @@
-"""The ``ccs`` command line: ``serve``, ``open`` and ``doctor``."""
+"""The ``ccs`` command line: ``serve``, ``open``, ``doctor`` and ``users`` (account first aid)."""
 
 from __future__ import annotations
 
@@ -9,10 +9,13 @@ import threading
 import time
 import urllib.request
 import webbrowser
+from collections.abc import MutableMapping
+from pathlib import Path
 
 import typer
 import uvicorn
 
+from .auth import __main__ as account_first_aid
 from .config import HOST, load_settings
 from .doctor import DoctorReport, check_webview2, run_all
 
@@ -21,10 +24,19 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
 )
+users_app = typer.Typer(
+    help="Account first aid on this laptop, for when nobody can sign in to the app.",
+    add_completion=False,
+    no_args_is_help=True,
+)
+app.add_typer(users_app, name="users")
 
 WINDOW_TITLE = "CashCow Studio"
 WINDOW_SIZE = (1440, 900)
 START_TIMEOUT_SECONDS = 30
+WEBVIEW_PROFILE_DIR = "webview"
+"""The app window's own browser profile in ``<app_data_dir>``: cookies and page settings are
+kept there between starts, so "Keep me signed in on this laptop" survives closing the app."""
 
 
 @app.command()
@@ -77,7 +89,7 @@ def open_window(
             raise typer.Exit(code=1)
         typer.echo(f"CashCow Studio is running at {url}")
 
-    if _open_native_window(url):
+    if _open_native_window(url, settings.app_data_dir / WEBVIEW_PROFILE_DIR):
         return  # the window was closed; the daemon server thread ends with the process
 
     typer.echo("Opening CashCow Studio in your web browser instead.")
@@ -97,6 +109,39 @@ def doctor() -> None:
     report = run_all(load_settings())
     typer.echo(format_report(report))
     raise typer.Exit(code=0 if report.ok else 1)
+
+
+# Account first aid (the same as ``python -m cashcow_studio.auth``) ---------------------------
+
+
+@users_app.command(name="list")
+def users_list() -> None:
+    """Show the team's accounts: role, turned on or off, laptop lock."""
+    raise typer.Exit(code=account_first_aid.main(["list"]))
+
+
+@users_app.command(name="reset-password")
+def users_reset_password(
+    username: str = typer.Argument(..., help="The account that needs a new password."),
+) -> None:
+    """Print a new one-time password; the person chooses their own at the next sign-in."""
+    raise typer.Exit(code=account_first_aid.main(["reset-password", username]))
+
+
+@users_app.command(name="enable")
+def users_enable(
+    username: str = typer.Argument(..., help="The account to turn back on."),
+) -> None:
+    """Turn a switched-off account back on."""
+    raise typer.Exit(code=account_first_aid.main(["enable", username]))
+
+
+@users_app.command(name="unlock")
+def users_unlock(
+    username: str = typer.Argument(..., help="The account that should work on any laptop."),
+) -> None:
+    """Remove an account's laptop lock (for an admin locked to a lost or renamed laptop)."""
+    raise typer.Exit(code=account_first_aid.main(["unlock", username]))
 
 
 # Helpers -------------------------------------------------------------------------------------
@@ -181,8 +226,14 @@ def _start_server_thread(port: int) -> threading.Thread:
     return thread
 
 
-def _open_native_window(url: str) -> bool:
-    """Show the app in a pywebview window. Returns False if that is not possible."""
+def _open_native_window(url: str, profile_dir: Path) -> bool:
+    """Show the app in a pywebview window. Returns False if that is not possible.
+
+    The window keeps a persistent browser profile in ``profile_dir``. pywebview's default is
+    a private (InPrivate) profile that deletes every cookie whenever the window starts, which
+    would sign everyone out each time the app is opened, "Keep me signed in" or not. A
+    session cookie (without "Keep me signed in") still ends when the window closes.
+    """
     if sys.platform == "win32" and check_webview2().status != "ok":
         typer.echo(
             "The Microsoft Edge WebView2 runtime is not installed, so the app cannot open "
@@ -196,8 +247,14 @@ def _open_native_window(url: str) -> bool:
         typer.echo(f"The app window could not be prepared: {exc}", err=True)
         return False
     try:
+        # The Production log's "Download CSV" is a file download, which pywebview refuses
+        # unless downloads are switched on (the file goes to the Downloads folder).
+        window_settings = getattr(webview, "settings", None)
+        if isinstance(window_settings, MutableMapping) and "ALLOW_DOWNLOADS" in window_settings:
+            window_settings["ALLOW_DOWNLOADS"] = True
+        profile_dir.mkdir(parents=True, exist_ok=True)
         webview.create_window(WINDOW_TITLE, url, width=WINDOW_SIZE[0], height=WINDOW_SIZE[1])
-        webview.start()
+        webview.start(private_mode=False, storage_path=str(profile_dir))
     except Exception as exc:
         typer.echo(f"The app window could not be opened: {exc}", err=True)
         return False

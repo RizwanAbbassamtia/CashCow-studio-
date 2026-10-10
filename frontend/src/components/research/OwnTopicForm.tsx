@@ -2,7 +2,7 @@ import { Lightbulb, Play } from "lucide-react";
 import { useState } from "react";
 
 import type { ProjectFormat } from "../../types/project";
-import { Button } from "../ui/Button";
+import { RunButton } from "../auth/Gated";
 import { Card } from "../ui/Card";
 import { Field } from "../ui/Field";
 import { Textarea } from "../ui/Input";
@@ -59,9 +59,9 @@ export function OwnTopicForm({ format, onSubmit, submitting, disabled }: OwnTopi
         </Field>
         <div className="flex items-center justify-between gap-4">
           <p className="text-xs text-ink-faint">Starts a {format === "shorts" ? "Short" : "long video"}. Switch the format above to change that.</p>
-          <Button type="submit" variant="secondary" icon={<Play />} loading={submitting} disabled={!canSubmit}>
+          <RunButton type="submit" variant="secondary" icon={<Play />} loading={submitting} disabled={!canSubmit}>
             Start from this topic
-          </Button>
+          </RunButton>
         </div>
       </form>
     </Card>

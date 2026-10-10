@@ -28,6 +28,21 @@ user's PC (the structure is shown in `channels/example-channel.yaml`):
 API keys are entered once in the app's Settings screen and stored in `.env` on that PC,
 never inside a channel file.
 
+## Optional: 2.5D parallax camera moves
+
+Scenes move with an eased pan and zoom ("Ken Burns") out of the box. The 2.5D parallax style
+(near things move more than far things) also needs the depth model's runtime:
+
+```
+.venv/Scripts/python.exe -m pip install -e ".[parallax]"
+```
+
+Then download the depth model once in Settings > Render (Depth Anything V2 Small, about
+99 MB, Apache-2.0; the file is checked against its SHA-256). Without either, parallax scenes
+use the Ken Burns move and the edit review says so. The `parallax` extra pins onnxruntime
+below 1.21: newer builds need the Microsoft Visual C++ Redistributable 14.40 or later and do
+not load on older Windows installs. Details: `docs/design/MOTION-PARITY.md`.
+
 ## Repository layout (planned)
 
 ```

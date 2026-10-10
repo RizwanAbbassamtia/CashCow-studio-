@@ -30,7 +30,6 @@ export function thumbnailUrl(projectId: string, variant: ThumbnailVariant, short
 }
 
 export interface ExportApproveBody {
-  by: string;
   notes?: string;
   edits?: ExportApproveEdits;
 }
@@ -40,13 +39,12 @@ export function useApproveExport(projectId: string) {
   const update = useProjectCacheUpdate();
   return useMutation({
     mutationFn: (body: ExportApproveBody): Promise<Project> =>
-      approveStage(projectId, "export", body as { by: string; notes?: string; edits?: Record<string, unknown> }),
+      approveStage(projectId, "export", body as { notes?: string; edits?: Record<string, unknown> }),
     onSuccess: update,
   });
 }
 
 export interface ExportRedoBody {
-  by: string;
   notes: string;
   /** kept for the next run (for example a new headline or thumbnail choice) */
   edits?: ExportApproveEdits;
@@ -57,7 +55,7 @@ export function useRedoExport(projectId: string) {
   const update = useProjectCacheUpdate();
   return useMutation({
     mutationFn: (body: ExportRedoBody): Promise<Project> =>
-      redoStage(projectId, "export", { by: body.by, notes: body.notes, edits: body.edits as Record<string, unknown> | undefined }),
+      redoStage(projectId, "export", { notes: body.notes, edits: body.edits as Record<string, unknown> | undefined }),
     onSuccess: update,
   });
 }

@@ -13,6 +13,8 @@ How the engine (``pipeline/engine.py``) uses a stage:
 * ``ctx.progress(message, pct)`` may be called from any thread; it is broadcast on the
   WebSocket as ``stage.progress``.
 * ``ctx.notes`` holds the reviewer's notes (from redo / approve); add them to the prompt.
+* ``ctx.user`` is the username of the signed-in person who started the run or approved the
+  stage (the export stage writes it into the activity log as ``export.done``).
 * ``StageResult.needs_review_payload`` is saved to ``<stage dir>/review_payload.json`` and
   served by ``GET /api/projects/{id}/stage/{stage}``. Put ``"cost_kind": "llm"|"voice"|"images"``
   in it when the cost belongs to another bucket than ``llm_usd`` (the default).
@@ -95,6 +97,9 @@ class StageContext:
     """Reviewer notes from a ``redo``; stages add them to their prompts."""
     edits: dict[str, Any] = field(default_factory=dict)
     """Stage-specific edits submitted with an approval or a redo (see the contract)."""
+    user: str = ""
+    """Username of the signed-in person who started this run or approved the stage (empty
+    when nobody is known, for example in a test that drives the engine directly)."""
     progress: ProgressCallback = lambda message, pct=None: None
     cancel: threading.Event = field(default_factory=threading.Event)
     """Set by the engine when the project is archived or the app shuts down while the stage

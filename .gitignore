@@ -6,10 +6,11 @@ config/local.*
 *.key
 *.pem
 
-# Generated media and per-video work folders (kept on each user's local drive)
-projects/
-exports/
-cache/
+# Generated media and per-video work folders (kept on each user's local drive).
+# Anchored to the repo root: frontend/src/components/projects/ is source code.
+/projects/
+/exports/
+/cache/
 *.mp4
 *.mov
 *.wav
@@ -20,6 +21,11 @@ cache/
 *.webp
 !docs/**/*.png
 !templates/**/*.png
+!tests/fixtures/**/*.png
+!tests/fixtures/**/*.jpg
+!tests/fixtures/**/*.jpeg
+# Transition previews for the pickers (tools/make_transition_previews.py) are committed.
+!frontend/public/transitions/*.webp
 
 # Python
 __pycache__/

@@ -9,20 +9,18 @@ import { projectFileUrl, uploadProjectFile, type UploadResult } from "./files";
 import { approveStage, redoStage, useProjectCacheUpdate, useStagePayload } from "./projects";
 
 export interface ImagesApproveBody {
-  by: string;
   notes?: string;
   edits?: ImagesApproveEdits;
 }
 
 export interface ImagesRedoBody {
-  by: string;
   notes: string;
   /** kept for the next run: named scenes are regenerated even when their picture was accepted */
   edits?: ImagesApproveEdits;
 }
 
 function asActionBody(body: ImagesApproveBody | ImagesRedoBody): StageActionBody {
-  const out: StageActionBody = { by: body.by };
+  const out: StageActionBody = {};
   if (body.notes) out.notes = body.notes;
   if (body.edits) out.edits = body.edits as Record<string, unknown>;
   return out;
@@ -33,7 +31,7 @@ export function approveImages(projectId: string, body: ImagesApproveBody) {
 }
 
 export function redoImages(projectId: string, body: ImagesRedoBody) {
-  return redoStage(projectId, "images", { by: body.by, notes: body.notes, ...(body.edits ? { edits: body.edits as Record<string, unknown> } : {}) });
+  return redoStage(projectId, "images", { notes: body.notes, ...(body.edits ? { edits: body.edits as Record<string, unknown> } : {}) });
 }
 
 /** Uploads a person's own picture for one scene into `06_images/`; the path goes into `edits.uploads`. */

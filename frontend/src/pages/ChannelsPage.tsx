@@ -2,9 +2,10 @@ import { ChevronRight, Plus, Search, Tv } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { useCan } from "../api/auth";
 import { useChannels } from "../api/channels";
+import { GatedLinkButton } from "../components/auth/Gated";
 import { ChannelStatusBadge } from "../components/ui/Badge";
-import { LinkButton } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -13,10 +14,13 @@ import { EmptyState, ErrorState } from "../components/ui/States";
 import { Table, TBody, TD, TH, THead, TR } from "../components/ui/Table";
 import { formatRelative } from "../lib/format";
 import { FORMAT_LABELS } from "../lib/labels";
+import { DENIED_REASONS } from "../lib/roles";
 
+/** /master/channels - one row per YouTube channel. Admins add and change channels; everyone can read them. */
 export function ChannelsPage() {
   const navigate = useNavigate();
   const channels = useChannels();
+  const mayEdit = useCan("edit_channels");
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -33,16 +37,20 @@ export function ChannelsPage() {
   }, [channels.data, search]);
 
   const newChannelButton = (
-    <LinkButton to="/channels/new" variant="primary" icon={<Plus />}>
+    <GatedLinkButton allowed={mayEdit} reason={DENIED_REASONS.edit_channels} to="/master/channels/new" variant="primary" icon={<Plus />}>
       New channel
-    </LinkButton>
+    </GatedLinkButton>
   );
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Channels"
-        description="One row per YouTube channel. Open a row to change its setup."
+        description={
+          mayEdit
+            ? "One row per YouTube channel. Open a row to change its setup."
+            : "One row per YouTube channel. Open a row to read its setup; only an admin can change it."
+        }
         actions={
           <>
             <div className="relative">
@@ -90,7 +98,7 @@ export function ChannelsPage() {
             </THead>
             <TBody>
               {filtered.map((channel) => {
-                const href = `/channels/${encodeURIComponent(channel.slug)}`;
+                const href = `/master/channels/${encodeURIComponent(channel.slug)}`;
                 return (
                   <TR
                     key={channel.slug}

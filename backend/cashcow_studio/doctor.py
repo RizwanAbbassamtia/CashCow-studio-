@@ -392,6 +392,94 @@ def check_shared_dir(settings: Settings) -> CheckResult:
     return CheckResult(id="shared_dir", name="Shared folder", status="ok", detail=detail)
 
 
+def check_team_roster(settings: Settings) -> CheckResult:
+    """The team's accounts in ``<shared_dir>/team/users/`` (warn when running from this
+    laptop's saved copy, when no admin can manage the accounts from any laptop, or when every
+    admin is locked to one laptop; fail when no account can be read at all)."""
+    from .auth.users import UserStore
+
+    store = UserStore(settings.resolved_shared_dir, settings.app_data_dir)
+    roster = store.roster()
+    where = store.users_dir
+    count = len(roster.users)
+    admins = roster.active_admins
+    first_admin_hint = "Open the app and create the first admin account."
+    update_hint = "Update CashCow Studio on this laptop to the version the rest of the team uses."
+
+    def result(status: Status, detail: str, fix_hint: str = "") -> CheckResult:
+        return CheckResult(
+            id="team_roster", name="Team accounts", status=status, detail=detail, fix_hint=fix_hint
+        )
+
+    if roster.source == "shared":
+        detail = f"{count} account(s), {len(admins)} active admin(s), in {where}."
+        if not admins:
+            return result(
+                "warn",
+                detail + " No admin account is turned on, so nobody can manage the accounts.",
+                "Turn an admin account back on with: ccs users enable <username> "
+                "(or python -m cashcow_studio.auth enable <username>).",
+            )
+        if all(admin.machine for admin in admins):
+            locks = ", ".join(f"{admin.username} on {admin.machine}" for admin in admins)
+            return result(
+                "warn",
+                detail + f" Every admin account is locked to one laptop ({locks}). If that "
+                "laptop is lost, renamed or replaced, nobody can manage the team's accounts.",
+                "Remove the laptop lock of at least one admin in Settings > Users & roles, or "
+                "run: ccs users unlock <username>.",
+            )
+        if roster.extra:
+            why = "newer version" if roster.newer else "damaged or still downloading"
+            return result(
+                "warn",
+                detail + f" {len(roster.extra)} account file(s) cannot be read on this laptop "
+                f"({why}): {', '.join(roster.extra)}. Those people cannot sign in here.",
+                update_hint if roster.newer else "Wait until Google Drive has finished "
+                "syncing. If a file stays damaged, restore an earlier version of it from "
+                "Google Drive's version history.",
+            )
+        return result("ok", detail)
+    if roster.source == "cache":
+        return result(
+            "warn",
+            f"The shared account list cannot be read ({roster.problem or where}), so this "
+            f"laptop is using the copy it saved last time ({count} account(s)). People can "
+            "sign in, but accounts cannot be changed until it is back.",
+            "Check that Google Drive is running and the shared folder is available, then run "
+            "the checks again.",
+        )
+    if roster.state == "missing":
+        detail = f"No account exists yet in {where}."
+        if roster.has_channels:
+            detail += " The shared folder already holds channels."
+        return result("warn", detail, first_admin_hint)
+    if roster.state == "incomplete":
+        return result(
+            "warn",
+            f"The shared folder holds the team's files but no account yet ({where}). Google "
+            "Drive is probably still downloading them; nobody can sign in on this laptop "
+            "until they arrive.",
+            "Wait until Google Drive has finished syncing, then run the checks again.",
+        )
+    if roster.newer:
+        return result(
+            "fail",
+            f"The team's accounts in {where} were saved by a newer version of CashCow Studio, "
+            "which this version cannot read. Nobody can sign in on this laptop until it is "
+            "updated.",
+            update_hint,
+        )
+    return result(
+        "fail",
+        f"The team's account list cannot be read: {roster.problem or where}. Nobody can sign "
+        "in on this laptop until it can.",
+        "Check that the shared Google Drive folder is available. If an account file in "
+        "team/users was damaged, restore an earlier version from Google Drive's version "
+        "history.",
+    )
+
+
 def _check_folder(check_id: str, name: str, folder: Path) -> CheckResult:
     ok, detail = _writable(folder)
     if ok:
@@ -520,6 +608,7 @@ def run_all(settings: Settings) -> DoctorReport:
         _safe("yt_dlp", "yt-dlp", check_yt_dlp),
         _safe("webview2", "WebView2 runtime", check_webview2),
         _safe("shared_dir", "Shared folder", lambda: check_shared_dir(settings)),
+        _safe("team_roster", "Team accounts", lambda: check_team_roster(settings)),
         _safe("projects_dir", "Projects folder", lambda: check_projects_dir(settings)),
         _safe("exports_dir", "Exports folder", lambda: check_exports_dir(settings)),
         _safe("anthropic_key", "Anthropic API key", lambda: check_anthropic_key(settings)),

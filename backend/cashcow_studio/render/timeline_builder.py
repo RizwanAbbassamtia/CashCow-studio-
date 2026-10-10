@@ -11,6 +11,15 @@ Rules (docs/M3-M4-CONTRACT.md section 3):
 * the music track is picked deterministically from the channel folder and marked
   ``license_ok`` only when a licence file sits next to it.
 
+Camera moves (docs/TRANSITIONS-V2-CONTRACT.md section 2): this builder is the only place
+that assigns a scene's rectangles. A known preset gets the rectangles of
+``render/motion.py`` (the storyboard's own rectangles are used only for a preset this app
+does not know), then the continuity rules of :func:`.motion.apply_continuity` run (alternate
+directions, zoom-through and whip cuts that agree with the camera; locked moves and
+transitions are never changed). Every scene carries the video's motion style (the
+storyboard's own choice, else the channel's, else ``config/render.yaml``) and the parallax
+strength.
+
 Nothing here invents timing: every second comes from ``timing.json``.
 """
 
@@ -39,6 +48,7 @@ from ..models.timeline import (
 )
 from .captions import caption_style_for, chunk_cues, pause_break_s, rules_for
 from .geometry import rect_in_pixels
+from .motion import ScenePlan, apply_continuity, load_motion_config, preset_rects, resolve_style
 from .music import has_licence, pick_track, resolve_track
 from .presets import RenderConfig, load_render_config
 
@@ -352,6 +362,35 @@ class BuildRequest:
     caption_style_name: str = "bold-white"
     popups_enabled: bool = True
     config: RenderConfig | None = None
+    motion_style: str | None = None
+    """The channel's ``images.motion_style``; the storyboard's own ``motion_style`` wins,
+    ``None`` falls back to ``config/render.yaml`` (``motion.style``)."""
+    parallax_strength: float | None = None
+    """``None`` = ``config/render.yaml`` (``parallax.strength``)."""
+
+
+def plan_scene_motions(scenes: Sequence[Scene]) -> list[ScenePlan]:
+    """Each scene's move as fraction rectangles: the preset's own rectangles for a preset
+    ``render/motion.py`` knows (whatever the storyboard stored), else the storyboard's."""
+    plans: list[ScenePlan] = []
+    for scene in scenes:
+        rects = preset_rects(scene.motion.preset)
+        if rects is None:
+            start = tuple(float(v) for v in scene.motion.start_rect)
+            end = tuple(float(v) for v in scene.motion.end_rect)
+        else:
+            start, end = rects
+        plans.append(
+            ScenePlan(
+                preset=str(scene.motion.preset),
+                start=start,  # type: ignore[arg-type]
+                end=end,  # type: ignore[arg-type]
+                transition=str(scene.transition_out.type),
+                motion_locked=bool(scene.locked.motion),
+                transition_locked=bool(scene.locked.transition_out),
+            )
+        )
+    return plans
 
 
 def build_timeline(request: BuildRequest) -> tuple[Timeline, list[str]]:
@@ -369,12 +408,22 @@ def build_timeline(request: BuildRequest) -> tuple[Timeline, list[str]]:
         max_share=config.transition_max_share,
         min_s=config.transition_min_frames / max(request.fps, 1),
     )
+    plans = plan_scene_motions(scenes)
+    apply_continuity(plans)
+    style = resolve_style(getattr(request.storyboard, "motion_style", None), request.motion_style)
+    strength = (
+        float(request.parallax_strength)
+        if request.parallax_strength is not None
+        else load_motion_config().parallax_strength
+    )
+    strength = min(max(strength, 0.0), 0.2)
     timeline_scenes: list[TimelineScene] = []
     for position, scene in enumerate(scenes):
         source = sources.get(scene.index)
         if source is None:
             raise TimelineBuildError(f"No picture for scene {scene.index + 1}.")
         start, end = bounds[position]
+        plan = plans[position]
         timeline_scenes.append(
             TimelineScene(
                 index=position,
@@ -382,18 +431,18 @@ def build_timeline(request: BuildRequest) -> tuple[Timeline, list[str]]:
                 start_s=start,
                 end_s=end,
                 motion=TimelineMotion(
-                    preset=scene.motion.preset,
+                    preset=plan.preset,
                     start_rect=rect_in_pixels(
-                        scene.motion.start_rect, source.width, source.height,
-                        request.width, request.height,
+                        plan.start, source.width, source.height, request.width, request.height,
                     ),
                     end_rect=rect_in_pixels(
-                        scene.motion.end_rect, source.width, source.height,
-                        request.width, request.height,
+                        plan.end, source.width, source.height, request.width, request.height,
                     ),
+                    style=style,
+                    strength=strength,
                 ),
                 transition_out=TimelineTransition(
-                    type=scene.transition_out.type, duration_s=transitions[position]
+                    type=plan.transition, duration_s=transitions[position]
                 ),
                 locked=bool(scene.locked.motion or scene.locked.transition_out),
             )

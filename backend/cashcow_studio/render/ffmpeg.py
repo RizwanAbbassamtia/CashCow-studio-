@@ -1,17 +1,24 @@
-"""The FFmpeg side of the edit stage: one filter graph per render, run with progress and a
-cancel flag.
+"""The FFmpeg side of the edit stage: render plans, child processes with progress and a cancel
+flag, probing.
 
-Per scene: ``scale`` (cover the working canvas) -> ``crop`` -> ``zoompan`` interpolating the
-start rectangle to the end rectangle over the scene's frames -> ``format=yuv420p``. Scenes
-are chained with ``xfade`` (a transition starts where the scene ends and overlaps the next
-scene), popups are PNG inputs laid over with ``overlay`` (alpha fade, optional slide),
-captions are burnt with ``subtitles`` (libass, the vendored Noto fonts), the voice ducks the
-music through ``sidechaincompress`` + ``amix`` and the mix is normalised with ``loudnorm``.
+Since Transitions v2 (docs/TRANSITIONS-V2-CONTRACT.md section 3) a render has three phases,
+run by ``render/assembly.py`` behind :func:`run_render`:
 
-The graph is written to a file and passed with ``-/filter_complex <file>`` (FFmpeg 7+; the
-older ``-filter_complex_script`` is gone in FFmpeg 9), so an 80-scene video never hits the
-Windows command-line limit. Progress comes from ``-progress pipe:1`` (``out_time_us``);
-setting the cancel flag kills FFmpeg within a quarter of a second.
+1. every scene becomes a cached clip (``render/scene_clips.py``: ``zoompan`` on the picture
+   with the eased move of ``render/motion.py``, or frames drawn in Python);
+2. every cut becomes a cached transition clip drawn by the transition engine
+   (``render/transitions/``) from the overlap frames of its two scene clips;
+3. one FFmpeg pass joins ``[clip][cut][clip]...`` with the concat demuxer, drops the overlap
+   frames with ``select``, lays the popups over with ``overlay`` (alpha fade, optional
+   slide), burns the captions with ``subtitles`` (libass, the vendored Noto fonts), ducks
+   the music under the voice (``sidechaincompress`` + ``amix``), normalises the loudness
+   (``loudnorm``) and encodes the preset.
+
+:func:`build_plan` is pure: it works out the frame layout and writes the assembly graph,
+which goes to FFmpeg as a file (``-/filter_complex <file>``, FFmpeg 7+) so an 80-scene
+video never hits the Windows command-line limit. Progress comes from ``-progress pipe:1``;
+setting the cancel flag kills the running child process within a quarter of a second and
+keeps every finished clip.
 """
 
 from __future__ import annotations
@@ -26,7 +33,6 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +40,6 @@ from PIL import Image, UnidentifiedImageError
 
 from ..models.timeline import Timeline, TimelinePopup
 from .fonts import fonts_dir
-from .geometry import cover_region, rect_to_canvas
 from .presets import RenderConfig, RenderPreset
 
 log = logging.getLogger(__name__)
@@ -46,14 +51,13 @@ PROBE_TIMEOUT_S = 60
 PEAK_TIMEOUT_S = 600
 REQUIRED_FILTERS: dict[str, str] = {
     "subtitles": "libass (burnt-in captions)",
-    "xfade": "scene transitions",
     "zoompan": "camera moves",
+    "select": "joining scene and transition clips",
+    "setparams": "colour tags of the clips",
     "sidechaincompress": "music ducking",
     "loudnorm": "loudness normalisation",
     "overlay": "popups",
 }
-FADE_TO_WHITE = {"fadewhite"}
-FADE_TRANSITIONS = {"fade", "fadeblack", "fadewhite", "fadegrays", "dissolve"}
 
 
 class RenderError(Exception):
@@ -360,6 +364,8 @@ class RenderPlan:
     x264_preset: str = "medium"
     crf: int = 20
     config: RenderConfig = field(default_factory=RenderConfig)
+    layout: Any = None
+    """The scene and transition clips and the frame bookkeeping (``assembly.Layout``)."""
 
     def output_args(self) -> list[str]:
         config = self.config
@@ -376,6 +382,8 @@ class RenderPlan:
             "-b:a", f"{config.audio_bitrate_kbps}k",
             "-ar", str(config.audio_sample_rate),
             "-ac", "2",
+            "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+            "-color_range", "tv",
             "-movflags", config.movflags,
             "-t", fmt(self.total_s),
         ]
@@ -410,7 +418,10 @@ def build_plan(
     x264_preset: str | None = None,
     fonts_folder: Path | None = None,
 ) -> RenderPlan:
-    """The inputs and the filter graph for one preset. Pure: nothing is run here."""
+    """The clips to make and the assembly graph for one preset. Pure: nothing is run here
+    (the pictures' sizes and dates are read)."""
+    from .assembly import plan_layout
+
     folder = Path(folder)
     width, height = preset.size(timeline.aspect)
     canvas_w, canvas_h = preset.canvas(timeline.aspect)
@@ -425,66 +436,18 @@ def build_plan(
         crf=preset.crf,
         config=config,
     )
-    parts: list[str] = []
-    scenes = timeline.scenes
-    if not scenes:
+    if not timeline.scenes:
         raise RenderError("The timeline has no scenes.")
-    first_frame = round(scenes[0].start_s * fps)
-    end_frames: list[int] = []
-    transition_frames: list[int] = []
-    for index, scene in enumerate(scenes):
-        start_f = round(scene.start_s * fps) - first_frame
-        end_f = round(scene.end_s * fps) - first_frame
-        last = index == len(scenes) - 1
-        trans_f = round(scene.transition_out.duration_s * fps)
-        if trans_f < config.transition_min_frames:
-            trans_f = 0
-        if last:
-            trans_f = min(trans_f, max(end_f - start_f - 1, 0))
-        clip_frames = max((end_f - start_f) + (0 if last else trans_f), 1)
-        end_frames.append(end_f)
-        transition_frames.append(trans_f)
-
-        image = resolve_path(folder, scene.image)
-        if not image.is_file():
-            raise RenderError(f"The picture for scene {index + 1} is missing: {image}")
-        image_w, image_h = _image_size(image)
-        region = cover_region(image_w, image_h, width, height)
-        x0, y0, w0, _h0 = rect_to_canvas(scene.motion.start_rect, region, canvas_w, canvas_h)
-        x1, y1, w1, _h1 = rect_to_canvas(scene.motion.end_rect, region, canvas_w, canvas_h)
-        progress = f"min(on/{clip_frames - 1}\\,1)" if clip_frames > 1 else "0"
-        zoom = f"{fmt(canvas_w)}/({fmt(w0)}+({fmt(w1 - w0)})*{progress})"
-        x_expr = f"{fmt(x0)}+({fmt(x1 - x0)})*{progress}"
-        y_expr = f"{fmt(y0)}+({fmt(y1 - y0)})*{progress}"
-        plan.inputs.append(["-i", str(image)])
-        input_index = len(plan.inputs) - 1
-        chain = (
-            f"[{input_index}:v]scale={canvas_w}:{canvas_h}:force_original_aspect_ratio=increase"
-            f":flags={config.scale_flags},crop={canvas_w}:{canvas_h},format=yuv420p,setsar=1,"
-            f"zoompan=z='{zoom}':x='{x_expr}':y='{y_expr}':d={clip_frames}:s={width}x{height}"
-            f":fps={fps},format=yuv420p,setsar=1"
-        )
-        if last and trans_f > 0:
-            colour = "white" if scene.transition_out.type in FADE_TO_WHITE else "black"
-            chain += (
-                f",fade=t=out:st={fmt((clip_frames - trans_f) / fps)}:d={fmt(trans_f / fps)}"
-                f":color={colour}"
-            )
-        parts.append(f"{chain}[s{index}]")
-
-    current = "[s0]"
-    for index in range(len(scenes) - 1):
-        trans_f = transition_frames[index]
-        offset = end_frames[index] / fps
-        if trans_f > 0:
-            parts.append(
-                f"{current}[s{index + 1}]xfade=transition={scenes[index].transition_out.type}"
-                f":duration={fmt(trans_f / fps)}:offset={fmt(offset)}[v{index + 1}]"
-            )
-        else:
-            parts.append(f"{current}[s{index + 1}]concat=n=2:v=1:a=0[v{index + 1}]")
-        current = f"[v{index + 1}]"
-    scenes_s = end_frames[-1] / fps
+    layout = plan_layout(timeline, preset, folder=folder, config=config,
+                         final_x264=plan.x264_preset)
+    plan.layout = layout
+    parts: list[str] = []
+    # Input 0: the scene and transition clips joined by the concat demuxer (the list is
+    # written next to the clips when the render runs; the path is relative to work_dir).
+    plan.inputs.append(["-f", "concat", "-safe", "0", "-i", layout.concat_path])
+    parts.append(f"[0:v]{layout.select_filter()},setsar=1[base]")
+    current = "[base]"
+    scenes_s = layout.total_frames / fps
 
     scale = min(width, height) / 1080.0
     for number, asset in enumerate(popups):
@@ -577,8 +540,9 @@ def build_plan(
         parts.append(
             f"[{clip_index}:v]scale={width}:{height}:force_original_aspect_ratio=decrease"
             f":flags={config.scale_flags},pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,"
-            f"setsar=1,fps={fps},format=yuv420p,trim=0:{fmt(info.duration_s)},"
-            f"setpts=PTS-STARTPTS[{label}_v]"
+            f"setsar=1,fps={fps},scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+            f"setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv,"
+            f"trim=0:{fmt(info.duration_s)},setpts=PTS-STARTPTS[{label}_v]"
         )
         if info.has_audio:
             parts.append(
@@ -621,6 +585,13 @@ class RenderResult:
     seconds_taken: float
     width: int = 0
     height: int = 0
+    scene_clips_total: int = 0
+    scene_clips_reused: int = 0
+    cuts_total: int = 0
+    cuts_reused: int = 0
+    phase_seconds: dict[str, float] = field(default_factory=dict)
+    parallax_fallbacks: int = 0
+    """Scenes set to 2.5D parallax that were drawn with the Ken Burns move instead."""
 
 
 def parse_progress_line(line: str) -> tuple[str, str] | None:
@@ -672,119 +643,16 @@ def run_render(
     ffprobe: str | None = None,
     label: str | None = None,
 ) -> RenderResult:
-    """Run one render to ``output``. FFmpeg's messages go to ``log_path`` (appended), the
-    graph to ``filters_<preset>.txt`` next to it. Raises :class:`RenderCancelled` when the
-    cancel flag is set, :class:`RenderError` when FFmpeg fails."""
-    ffmpeg = ffmpeg or find_ffmpeg()
-    work_dir = Path(work_dir)
-    work_dir.mkdir(parents=True, exist_ok=True)
-    output = Path(output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    script = work_dir / f"filters_{plan.preset.id}.txt"
-    script.write_text(plan.filter_graph, encoding="utf-8")
-    command = [
-        ffmpeg,
-        "-hide_banner", "-nostdin", "-loglevel", "warning", "-nostats",
-        "-progress", "pipe:1", "-stats_period", "0.5", "-y",
-    ]
-    for item in plan.inputs:
-        command.extend(item)
-    command += ["-/filter_complex", str(script), *plan.output_args(), str(output)]
-    name = label or plan.preset.id
-    started = time.monotonic()
-    stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("a", encoding="utf-8") as log_file:
-        log_file.write(
-            f"\n===== {stamp}  render {name} -> {output.name} ({plan.width}x{plan.height}, "
-            f"{plan.total_s:g} s, x264 {plan.x264_preset} crf {plan.crf}) =====\n"
-        )
-        log_file.write("command: " + subprocess.list2cmdline(command) + "\n")
-        log_file.flush()
-        try:
-            process = subprocess.Popen(
-                command,
-                cwd=str(work_dir),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=NO_WINDOW,
-            )
-        except OSError as exc:
-            raise RenderError(f"FFmpeg could not be started: {exc}") from exc
+    """Run one render to ``output``: scene clips, transition clips, then the assembly pass
+    (``render/assembly.py``). Clips are cached under ``work_dir/clips/<preset>/``; FFmpeg's
+    messages and the per-scene and per-cut timings go to ``log_path`` (appended), the
+    assembly graph to ``filters_<preset>.txt`` in ``work_dir``. Progress is reported as
+    ``Rendering <preset> N%`` over the three phases. Raises :class:`RenderCancelled` when
+    the cancel flag is set (finished clips are kept), :class:`RenderError` when FFmpeg
+    fails."""
+    from .assembly import run_pipeline
 
-        killed = threading.Event()
-
-        def watchdog() -> None:
-            while process.poll() is None:
-                if cancel is not None and cancel.wait(0.25):
-                    killed.set()
-                    process.kill()
-                    return
-                if cancel is None:
-                    time.sleep(0.25)
-
-        watcher = threading.Thread(target=watchdog, name=f"render-cancel-{name}", daemon=True)
-        watcher.start()
-        pump = threading.Thread(
-            target=_pump_stderr, args=(process.stderr, log_file), name=f"render-log-{name}",
-            daemon=True,
-        )
-        pump.start()
-        last_pct = -1.0
-        last_report = 0.0
-        total_us = max(plan.total_s, 0.01) * 1_000_000
-        assert process.stdout is not None
-        try:
-            for line in process.stdout:
-                parsed = parse_progress_line(line)
-                if parsed is None:
-                    continue
-                key, value = parsed
-                pct: float | None = None
-                if key == "out_time_us" or key == "out_time_ms":
-                    try:
-                        pct = min(99.0, max(0.0, int(value) / total_us * 100.0))
-                    except ValueError:
-                        pct = None
-                elif key == "progress" and value == "end":
-                    pct = 100.0
-                if pct is None or progress is None:
-                    continue
-                now = time.monotonic()
-                if pct >= last_pct + 1.0 or pct == 100.0 or now - last_report > 2.0:
-                    last_pct, last_report = pct, now
-                    progress(f"Rendering {name} {int(pct)}%", pct)
-        finally:
-            process.stdout.close()
-            returncode = process.wait()
-            watcher.join(timeout=1.0)
-            pump.join(timeout=5.0)
-            if process.stderr is not None:
-                process.stderr.close()
-        log_file.write(f"exit code {returncode} after {time.monotonic() - started:.1f} s\n")
-        log_file.flush()
-    if killed.is_set() or (cancel is not None and cancel.is_set()):
-        try:
-            output.unlink()
-        except OSError:
-            pass
-        raise RenderCancelled(f"The {name} render was stopped.")
-    if returncode != 0:
-        detail = _tail(log_path)
-        raise RenderError(
-            f"FFmpeg could not render {name} (exit code {returncode}). The last lines of "
-            f"{log_path.name}:\n{detail}"
-        )
-    info = probe_media(output, ffprobe, cancel)
-    return RenderResult(
-        path=output,
-        duration_s=info.duration_s,
-        size_bytes=info.size_bytes,
-        seconds_taken=round(time.monotonic() - started, 1),
-        width=info.width,
-        height=info.height,
+    return run_pipeline(
+        plan, output, work_dir=work_dir, log_path=log_path, progress=progress, cancel=cancel,
+        ffmpeg=ffmpeg, ffprobe=ffprobe, label=label,
     )

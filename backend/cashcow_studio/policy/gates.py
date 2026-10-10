@@ -249,7 +249,7 @@ def check_script_sensitive_topic(r: Rule, context: dict[str, Any]) -> tuple[bool
 # Storyboard checks -------------------------------------------------------------------------
 # context: {"format": "long"|"shorts", "scenes": [{"est_duration_s", "motion_preset",
 #           "transition_type", "popup_text", "on_screen_text", "narration", "image_prompt"}],
-#           "known_transitions": [str]}
+#           "known_transitions": [str], "transition_histogram": {id: uses} (optional)}
 
 
 def _scenes(context: dict[str, Any]) -> list[dict[str, Any]]:
@@ -298,6 +298,32 @@ def check_storyboard_transition_known(r: Rule, context: dict[str, Any]) -> tuple
     if not unknown:
         return True, "All transitions come from the approved list."
     return False, f"Transition not in the approved list: {_indexes(unknown)}."
+
+
+def check_storyboard_visual_variety(r: Rule, context: dict[str, Any]) -> tuple[bool, str]:
+    scenes = _scenes(context)
+    histogram = context.get("transition_histogram")
+    if not isinstance(histogram, dict):
+        histogram = {}
+        for scene in scenes:
+            name = scene.get("transition_type")
+            if name:
+                histogram[name] = histogram.get(name, 0) + 1
+    distinct = len([name for name, uses in histogram.items() if name and uses])
+    fmt = str(context.get("format", "long"))
+    formats = [str(f) for f in r.parameters.get("formats", ["long"])]
+    min_scenes = int(r.parameters.get("min_scenes", 8))
+    need = int(r.parameters.get("min_distinct", 4))
+    used = f"{distinct} different transition{'' if distinct == 1 else 's'}"
+    if fmt not in formats:
+        return True, f"{used}; only long videos are checked."
+    if len(scenes) < min_scenes:
+        return True, (f"{used}; too few scenes to judge ({len(scenes)}, the check starts at "
+                      f"{min_scenes}).")
+    if distinct >= need:
+        return True, f"{used} across {len(scenes)} scenes."
+    return False, (f"Only {used} across {len(scenes)} scenes; use at least {need} so the video "
+                   "does not look templated.")
 
 
 def _norm(text: str | None) -> str:
@@ -519,6 +545,7 @@ CHECKS: dict[str, Callable[[Rule, dict[str, Any]], tuple[bool, str]]] = {
     "storyboard.motion_alternates": check_storyboard_motion_alternates,
     "storyboard.transition_no_repeat": check_storyboard_transition_no_repeat,
     "storyboard.transition_known": check_storyboard_transition_known,
+    "storyboard.visual_variety": check_storyboard_visual_variety,
     "storyboard.popup_words": check_storyboard_popup_words,
     "storyboard.popup_share": check_storyboard_popup_share,
     "storyboard.prompt_text_free": check_storyboard_prompt_text_free,

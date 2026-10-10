@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, PackageCheck, RefreshCw, RotateCcw, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useCan } from "../../api/auth";
 import { useChannel } from "../../api/channels";
 import { ApiError, errorMessage } from "../../api/client";
 import { useEditPayload } from "../../api/edit";
@@ -9,17 +10,18 @@ import { useProject } from "../../api/projects";
 import { useSettings } from "../../api/settings";
 import type { ExportApproveEdits, ExportMetadata, ExportReviewPayload, Provenance, ThumbnailChoice } from "../../types/export";
 import { renderPresetLabel } from "../../types/timeline";
+import { ApprovingAs } from "../auth/ApprovingAs";
+import { ReviewButton } from "../auth/Gated";
 import { useUnsavedGuard } from "../edit/useUnsavedGuard";
 import { ExportFolderPanel } from "../export/ExportFolderPanel";
 import { MetadataEditor, metadataBlockers, metadataWarnings } from "../export/MetadataEditor";
 import { ThumbnailPicker } from "../export/ThumbnailPicker";
 import { Panel } from "../script/Panel";
 import { RegenerateDialog } from "../script/RegenerateDialog";
-import { useReviewer } from "../script/useReviewer";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/Dialog";
-import { Input, Textarea } from "../ui/Input";
+import { Textarea } from "../ui/Input";
 import { LoadingBlock } from "../ui/Spinner";
 import { EmptyState, ErrorState, Notice } from "../ui/States";
 import { useToast } from "../ui/Toast";
@@ -89,7 +91,7 @@ function ProvenanceSummary({ provenance }: { provenance: Provenance | null }) {
  */
 export function ExportReview({ projectId }: ExportReviewProps) {
   const { toast } = useToast();
-  const reviewer = useReviewer(projectId);
+  const mayApprove = useCan("approve");
   const project = useProject(projectId);
   const channel = useChannel(project.data?.channel_slug);
   const settings = useSettings();
@@ -150,7 +152,7 @@ export function ExportReview({ projectId }: ExportReviewProps) {
   }
 
   const busy = approve.isPending || redo.isPending;
-  const locked = running || busy || !canApprove;
+  const locked = running || busy || !canApprove || !mayApprove;
   const durationS = edit.payload?.summary.duration_s ?? null;
   const blockers = metadataBlockers(draft.metadata);
   const maxWords = payload.max_headline_words ?? channel.data?.thumbnail.max_headline_words ?? null;
@@ -190,7 +192,7 @@ export function ExportReview({ projectId }: ExportReviewProps) {
       toast({ tone: "error", title: "Fix the highlighted fields first", description: blockers[0] });
       return;
     }
-    const body: ExportApproveBody = { by: reviewer.effective };
+    const body: ExportApproveBody = {};
     if (approveNotes.trim()) body.notes = approveNotes.trim();
     const edits: ExportApproveEdits = {};
     if (JSON.stringify(draft.metadata) !== JSON.stringify(savedDraft.metadata)) edits.metadata = draft.metadata;
@@ -219,7 +221,7 @@ export function ExportReview({ projectId }: ExportReviewProps) {
 
   const onRedo = (notes: string) => {
     redo.mutate(
-      { by: reviewer.effective, notes },
+      { notes },
       {
         onSuccess: () => {
           setRedoOpen(false);
@@ -248,14 +250,14 @@ export function ExportReview({ projectId }: ExportReviewProps) {
               </Button>
             ) : null}
             {canRedo ? (
-              <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRedoOpen(true)} disabled={busy || running}>
+              <ReviewButton variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRedoOpen(true)} disabled={busy || running}>
                 Redo with notes
-              </Button>
+              </ReviewButton>
             ) : null}
             {canApprove ? (
-              <Button variant="primary" size="sm" icon={<PackageCheck />} loading={approve.isPending} disabled={locked || blockers.length > 0} onClick={onApprove}>
+              <ReviewButton variant="primary" size="sm" icon={<PackageCheck />} loading={approve.isPending} disabled={locked || blockers.length > 0} onClick={onApprove}>
                 Approve and export
-              </Button>
+              </ReviewButton>
             ) : null}
           </>
         }
@@ -362,10 +364,7 @@ export function ExportReview({ projectId }: ExportReviewProps) {
           {canApprove ? (
             <Panel title="Approve and export" description="Copies the final video, both thumbnails and metadata.json into the export folder.">
               <div className="flex flex-col gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-medium text-ink-muted">Your name</span>
-                  <Input value={reviewer.name} onChange={(event) => reviewer.setName(event.target.value)} placeholder={reviewer.effective} autoComplete="name" />
-                </label>
+                <ApprovingAs />
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[13px] font-medium text-ink-muted">Note for the project log (optional)</span>
                   <Textarea rows={2} value={approveNotes} onChange={(event) => setApproveNotes(event.target.value)} placeholder="Anything the team should know" />
@@ -384,9 +383,9 @@ export function ExportReview({ projectId }: ExportReviewProps) {
                     </span>
                   </label>
                 ) : null}
-                <Button variant="primary" icon={<PackageCheck />} loading={approve.isPending} disabled={locked || blockers.length > 0} onClick={onApprove}>
+                <ReviewButton variant="primary" className="w-full" icon={<PackageCheck />} loading={approve.isPending} disabled={locked || blockers.length > 0} onClick={onApprove}>
                   {dirty ? "Approve with my edits and export" : "Approve and export"}
-                </Button>
+                </ReviewButton>
               </div>
             </Panel>
           ) : finished ? (

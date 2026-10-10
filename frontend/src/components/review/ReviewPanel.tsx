@@ -1,6 +1,5 @@
 import { FolderOpen } from "lucide-react";
 
-import { useChannel } from "../../api/channels";
 import { useProject } from "../../api/projects";
 import { useStageProgress } from "../../api/ws";
 import type { StageName } from "../../types/channel";
@@ -9,7 +8,6 @@ import { ProgressBar } from "../projects/ProgressBar";
 import { StageActions } from "../projects/StageActions";
 import { STAGE_DESCRIPTIONS, STAGE_FILES, STAGE_FOLDERS, STAGE_LABELS } from "../projects/stageMeta";
 import { StageStatusBadge } from "../projects/StageStatusBadge";
-import { useReviewerName } from "../projects/useReviewerName";
 import { Badge } from "../ui/Badge";
 import { Card } from "../ui/Card";
 import { LoadingBlock } from "../ui/Spinner";
@@ -102,8 +100,6 @@ function StageBody({ project, stage }: { project: Project; stage: StageName }) {
  */
 export function ReviewPanel({ projectId, stage }: ReviewPanelProps) {
   const project = useProject(projectId);
-  const channel = useChannel(project.data?.channel_slug);
-  const { effective: by } = useReviewerName(channel.data?.reviewer ?? "");
   const progress = useStageProgress(projectId);
 
   if (project.isPending) {
@@ -131,12 +127,12 @@ export function ReviewPanel({ projectId, stage }: ReviewPanelProps) {
 
   const actions =
     status === "running" ? null : status === "pending" ? (
-      stage === data.current_stage ? <StageActions project={data} stage={stage} by={by} showApprove={false} showRedo={false} /> : null
+      stage === data.current_stage ? <StageActions project={data} stage={stage} showApprove={false} showRedo={false} /> : null
     ) : (
       <StageActions
         project={data}
         stage={stage}
-        by={by}
+       
         showApprove={!ownControls && status !== "skipped"}
         showRedo={!ownControls}
         approveLabel={status === "awaiting_manual" ? "Files are in place, continue" : undefined}

@@ -8,7 +8,10 @@ nothing it was built from changed (so a person may edit it by hand and press Run
 replaced whole by the ``timeline`` edit. A finished render is kept while what it was made
 from is unchanged (the timeline without its preset list, the popup switch, the x264 speed and
 the source files, hashed into ``render_key`` in ``render_state.json``), so adding a preset
-only renders the new size; only missing or stale renders are made again.
+only renders the new size; only missing or stale renders are made again. Inside a render,
+every scene and every transition is a cached clip under ``07_edit/clips/<preset>/``
+(docs/TRANSITIONS-V2-CONTRACT.md section 3): after an edit only the scenes and cuts that
+changed are drawn again, and the review payload says how many clips were reused.
 
 Edits (approve or redo): ``{presets: [...]}``, ``{music_path}`` (``""`` = no music),
 ``{captions_enabled}``, ``{popups_enabled}``, ``{timeline: Timeline}``, ``{rebuild: true}``.
@@ -177,10 +180,15 @@ def render_key_for(
     popups_enabled: bool,
     x264_preset: str | None,
     sources_mtime: float,
+    depth: str = "",
 ) -> str:
     """A short hash of everything a finished render depends on: the timeline without its
     preset list (adding a preset must not throw finished files away), the popup switch, the
-    x264 speed and the newest source file (a replaced picture or voice renders again)."""
+    x264 speed, the newest source file (a replaced picture or voice renders again) and the
+    versions of the transition engine and the scene-clip renderer (new maths, new render)."""
+    from ...render.scene_clips import CLIP_ENGINE_VERSION
+    from ...render.transitions import ENGINE_VERSION
+
     content = timeline.model_dump(mode="json", exclude={"presets"})
     blob = json.dumps(
         {
@@ -188,6 +196,8 @@ def render_key_for(
             "popups": bool(popups_enabled),
             "x264": x264_preset or "",
             "sources": int(sources_mtime),
+            "engine": f"{ENGINE_VERSION}/{CLIP_ENGINE_VERSION}",
+            "depth": depth,
         },
         sort_keys=True,
         default=str,
@@ -252,6 +262,47 @@ def allowed_presets(
     return result
 
 
+# 2.5D parallax ----------------------------------------------------------------------------------
+
+
+def _wants_parallax(scene: Any) -> bool:
+    return getattr(scene.motion, "style", None) == "parallax"
+
+
+def prepare_depth_maps(
+    folder: Path, timeline: Timeline, settings: Any, cancel: Any = None
+) -> tuple[str | None, str]:
+    """Depth maps for the pictures of scenes set to 2.5D parallax (``render/parallax``;
+    made only when the depth model is downloaded). Returns a plain-English note when some
+    scenes must use the Ken Burns move instead, and a fingerprint of the maps for the render
+    key (a final drawn without depth is drawn again once the maps exist)."""
+    images: list[Path] = []
+    for scene in timeline.scenes:
+        if _wants_parallax(scene):
+            image = ff.resolve_path(folder, scene.image)
+            if image not in images:
+                images.append(image)
+    if not images:
+        return None, ""
+    try:
+        from ...render.parallax import depth_fingerprint, ensure_depth_maps
+    except ImportError:
+        return (
+            "2.5D parallax is not installed on this computer, so those scenes use the Ken "
+            "Burns move instead.",
+            "",
+        )
+    note: str | None = None
+    try:
+        batch = ensure_depth_maps(images, settings, cancel=cancel)
+        note = batch.fallback_reason
+    except Exception as exc:  # noqa: BLE001 - the render goes on with the Ken Burns move
+        log.warning("Depth maps could not be made: %s", exc)
+        note = "Depth maps could not be made, so the 2.5D parallax scenes use the Ken Burns move."
+    token = "|".join(f"{image.name}:{depth_fingerprint(image)}" for image in images)
+    return note, token
+
+
 # Popups ------------------------------------------------------------------------------------------
 
 
@@ -310,6 +361,9 @@ def _render_rows(
         if preset_id not in timeline.presets and preset_id != PROXY_ID and status == "not_rendered":
             if config.presets[preset_id].requires_enable_4k and not enable_4k:
                 continue
+        total = raw.get("scene_clips_total")
+        reused = raw.get("scene_clips_reused")
+        counted = isinstance(total, int) and isinstance(reused, int) and total > 0
         rows.append(
             RenderOutput(
                 preset=preset_id,
@@ -323,9 +377,49 @@ def _render_rows(
                 width=raw.get("width"),
                 height=raw.get("height"),
                 rendered_at=raw.get("rendered_at"),
+                scene_clips_total=total if counted else None,
+                scene_clips_reused=reused if counted else None,
+                reuse_note=reuse_note(reused, total) if counted else None,
             )
         )
     return rows
+
+
+def reuse_note(reused: int, total: int) -> str:
+    """``Reused 2 of 3 scene clips.`` (what the reviewer sees under a render)."""
+    noun = "scene clip" if total == 1 else "scene clips"
+    return f"Reused {reused} of {total} {noun}."
+
+
+def render_notes(state: dict[str, Any], presets: list[str]) -> list[str]:
+    """One plain line per finished render about the clips it reused, plus a note when
+    scenes set to 2.5D parallax had to use the Ken Burns move."""
+    renders = state.get("renders") if isinstance(state.get("renders"), dict) else {}
+    notes: list[str] = []
+    fallbacks = 0
+    for preset_id in [PROXY_ID, *presets]:
+        raw = renders.get(preset_id)
+        if not isinstance(raw, dict) or raw.get("status") != "done":
+            continue
+        total, reused = raw.get("scene_clips_total"), raw.get("scene_clips_reused")
+        if isinstance(total, int) and isinstance(reused, int) and total > 0:
+            name = "Proxy" if preset_id == PROXY_ID else preset_id
+            noun = "scene clip" if total == 1 else "scene clips"
+            line = f"{name}: reused {reused} of {total} {noun}"
+            cuts_total, cuts_reused = raw.get("cuts_total"), raw.get("cuts_reused")
+            if isinstance(cuts_total, int) and isinstance(cuts_reused, int) and cuts_total:
+                word = "transition" if cuts_total == 1 else "transitions"
+                line += f" and {cuts_reused} of {cuts_total} {word}"
+            notes.append(line + ".")
+        if isinstance(raw.get("parallax_fallbacks"), int):
+            fallbacks = max(fallbacks, int(raw["parallax_fallbacks"]))
+    if fallbacks:
+        scenes = "scene" if fallbacks == 1 else "scenes"
+        notes.append(
+            f"2.5D parallax was not available for {fallbacks} {scenes}, so they use the "
+            "Ken Burns move instead."
+        )
+    return notes
 
 
 def build_payload(
@@ -390,6 +484,7 @@ def build_payload(
         gate_results=list(gate_results),
         render_log_path=f"{STAGE_DIR_NAME}/{RENDER_LOG}",
         timing_source=timing_source,
+        render_notes=render_notes(state, list(timeline.presets)),
     )
     return payload.model_dump(mode="json")
 
@@ -475,10 +570,17 @@ class EditStage:
 
         if ctx.cancelled:
             raise StageError("The edit step was stopped before rendering started.")
+        if any(_wants_parallax(scene) for scene in timeline.scenes):
+            await ctx.report("Preparing depth maps for 2.5D parallax", 8)
+        depth_note, depth_token = await run_in_thread(
+            ctx, partial(prepare_depth_maps, ctx.folder, timeline, ctx.settings, ctx.cancel)
+        )
+        if depth_note and depth_note not in warnings:
+            warnings.append(depth_note)
         targets = [config.proxy] + [config.presets[p] for p in timeline.presets]
         render_key = render_key_for(
             timeline, popups_enabled=popups_enabled, x264_preset=options.x264_preset,
-            sources_mtime=sources.newest_mtime,
+            sources_mtime=sources.newest_mtime, depth=depth_token,
         )
         renders_state: dict[str, Any] = (
             state.get("renders") if isinstance(state.get("renders"), dict) else {}
@@ -767,6 +869,12 @@ class EditStage:
                 "popups_enabled": popups_enabled,
                 "render_key": render_key,
                 "rendered_at": utc_stamp(),
+                "scene_clips_total": result.scene_clips_total,
+                "scene_clips_reused": result.scene_clips_reused,
+                "cuts_total": result.cuts_total,
+                "cuts_reused": result.cuts_reused,
+                "phase_seconds": dict(result.phase_seconds),
+                "parallax_fallbacks": result.parallax_fallbacks,
             }
             write_state(stage_dir, state)
             results.append(result)

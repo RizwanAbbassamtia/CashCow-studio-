@@ -1,6 +1,7 @@
 import { AlertTriangle, Check, Clapperboard, FileText, MessageSquare, RotateCcw, Subtitles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useCan } from "../../api/auth";
 import { useChannel } from "../../api/channels";
 import { ApiError, errorMessage } from "../../api/client";
 import {
@@ -17,6 +18,9 @@ import {
 import { useProject } from "../../api/projects";
 import { useRenderSettings } from "../../api/settings";
 import { renderPresetLabel, type EditApproveEdits, type EditReviewPayload } from "../../types/timeline";
+import { ApprovingAs } from "../auth/ApprovingAs";
+import { ReviewButton } from "../auth/Gated";
+import { cutsFromTimeline, maxCutSeconds, sameCuts, withCutEdits, type CutTransition } from "../edit/cutTransitions";
 import { formatClock, transitionLabel } from "../edit/editUtils";
 import { MusicSelector } from "../edit/MusicSelector";
 import { ProxyPlayer } from "../edit/ProxyPlayer";
@@ -24,11 +28,12 @@ import { RenderPresets } from "../edit/RenderPresets";
 import { SceneStrip, type SceneStripItem } from "../edit/SceneStrip";
 import { useUnsavedGuard } from "../edit/useUnsavedGuard";
 import { Panel } from "../script/Panel";
-import { useReviewer } from "../script/useReviewer";
+import { useTransitionCatalogue } from "../storyboard/transitionCatalogue";
+import { TransitionPicker } from "../storyboard/TransitionPicker";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/Dialog";
-import { Input, Textarea } from "../ui/Input";
+import { Textarea } from "../ui/Input";
 import { LoadingBlock } from "../ui/Spinner";
 import { EmptyState, ErrorState, Notice } from "../ui/States";
 import { useToast } from "../ui/Toast";
@@ -43,6 +48,8 @@ interface EditDraft {
   music_path: string | null;
   captions_enabled: boolean;
   popups_enabled: boolean;
+  /** the transition out of every scene (the strip's cut pickers) */
+  transitions: CutTransition[];
 }
 
 function draftFrom(payload: EditReviewPayload, defaultPresets: string[]): EditDraft {
@@ -52,6 +59,7 @@ function draftFrom(payload: EditReviewPayload, defaultPresets: string[]): EditDr
     music_path: payload.music_path,
     captions_enabled: payload.captions_enabled,
     popups_enabled: payload.popups_enabled,
+    transitions: cutsFromTimeline(payload.timeline),
   };
 }
 
@@ -78,7 +86,7 @@ function editsBetween(draft: EditDraft, saved: EditDraft): EditApproveEdits {
  */
 export function EditReview({ projectId }: EditReviewProps) {
   const { toast } = useToast();
-  const reviewer = useReviewer(projectId);
+  const mayApprove = useCan("approve");
   const project = useProject(projectId);
   const channel = useChannel(project.data?.channel_slug);
   const { resolved: renderSettings } = useRenderSettings();
@@ -86,6 +94,7 @@ export function EditReview({ projectId }: EditReviewProps) {
   const progress = useRenderProgress(projectId);
   const render = useRenderPresets(projectId);
   const approve = useApproveEdit(projectId);
+  const catalogue = useTransitionCatalogue().data ?? null;
 
   const status = project.data?.stages.edit?.status ?? "pending";
   const running = status === "running";
@@ -124,10 +133,11 @@ export function EditReview({ projectId }: EditReviewProps) {
         end_s: scene.end_s,
         thumbUrl: projectMediaUrl(projectId, scene.image_path ?? sceneImageFile(scene.index), scene.image_url),
         transition: scene.transition,
+        transitionName: scene.transition ? transitionLabel(scene.transition, catalogue) : undefined,
         popupText: scene.popup_text,
         locked: scene.locked,
       })),
-    [payload, projectId],
+    [payload, projectId, catalogue],
   );
 
   if (query.isPending) {
@@ -171,8 +181,14 @@ export function EditReview({ projectId }: EditReviewProps) {
   const musicLicenseOk = draft.music_path === payload.music_path ? payload.music_license_ok : (musicTrack?.license_ok ?? false);
   const musicChanged = draft.music_path !== savedDraft.music_path;
   const togglesChanged = draft.captions_enabled !== savedDraft.captions_enabled || draft.popups_enabled !== savedDraft.popups_enabled;
+  const cutsChanged = !sameCuts(draft.transitions, savedDraft.transitions);
+  // A changed cut goes to the server as the whole timeline (with the music choice in it).
+  const editsFor = (edits: EditApproveEdits): EditApproveEdits =>
+    withCutEdits(edits, payload.timeline, draft.transitions, savedDraft.transitions, { path: draft.music_path, licenseOk: musicLicenseOk });
 
   const patch = (changes: Partial<EditDraft>) => setDraft((current) => (current ? { ...current, ...changes } : current));
+  const patchCut = (index: number, cut: CutTransition) =>
+    setDraft((current) => (current ? { ...current, transitions: current.transitions.map((item, i) => (i === index ? cut : item)) } : current));
 
   const seekTo = (scene: SceneStripItem) => {
     const video = videoRef.current;
@@ -188,11 +204,11 @@ export function EditReview({ projectId }: EditReviewProps) {
 
   const onRender = (presets: string[]) => {
     if (presets.length === 0) return;
-    const edits = editsBetween(draft, savedDraft);
+    const edits = editsFor(editsBetween(draft, savedDraft));
     delete edits.presets;
     const names = presets.map(renderPresetLabel).join(", ");
     render.mutate(
-      { by: reviewer.effective, presets, edits },
+      { presets, edits },
       {
         onSuccess: () => {
           setBlockedMessage(null);
@@ -204,9 +220,9 @@ export function EditReview({ projectId }: EditReviewProps) {
   };
 
   const onApprove = () => {
-    const body: EditApproveBody = { by: reviewer.effective };
+    const body: EditApproveBody = {};
     if (approveNotes.trim()) body.notes = approveNotes.trim();
-    const edits = editsBetween(draft, savedDraft);
+    const edits = editsFor(editsBetween(draft, savedDraft));
     // A ticked size that has no file yet is rendered as part of the approval.
     if (missingPresets.length > 0) edits.presets = draft.presets;
     if (overrideGates && showOverride) edits.override_gates = true;
@@ -258,9 +274,9 @@ export function EditReview({ projectId }: EditReviewProps) {
               </Button>
             ) : null}
             {canApprove ? (
-              <Button variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy || running || draft.presets.length === 0} onClick={onApprove}>
+              <ReviewButton variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy || running || draft.presets.length === 0} onClick={onApprove}>
                 {dirty ? "Approve with my changes" : "Approve"}
-              </Button>
+              </ReviewButton>
             ) : null}
           </>
         }
@@ -275,7 +291,33 @@ export function EditReview({ projectId }: EditReviewProps) {
               {formatClock(currentTime)} / {formatClock(videoDuration)}
             </span>
           </div>
-          <SceneStrip scenes={stripScenes} currentTime={currentTime} aspect={summary.aspect} onSeek={seekTo} />
+          <SceneStrip
+            scenes={stripScenes}
+            currentTime={currentTime}
+            aspect={summary.aspect}
+            onSeek={seekTo}
+            renderCut={
+              payload.timeline && draft.transitions.length === stripScenes.length
+                ? (_scene, position) => {
+                    const cut = draft.transitions[position]!;
+                    const last = position === stripScenes.length - 1;
+                    return (
+                      <TransitionPicker
+                        variant="compact"
+                        value={cut}
+                        onChange={(next) => patchCut(position, next)}
+                        format={payload.timeline?.format ?? "long"}
+                        channelPack={channel.data?.images.transition_pack}
+                        label={last ? "Ending transition" : `Transition from scene ${position + 1} to ${position + 2}`}
+                        maxDurationS={maxCutSeconds(payload.timeline, position)}
+                        changed={!sameCuts([cut], [savedDraft.transitions[position]!])}
+                        disabled={running || busy}
+                      />
+                    );
+                  }
+                : undefined
+            }
+          />
         </div>
       </Panel>
 
@@ -305,7 +347,7 @@ export function EditReview({ projectId }: EditReviewProps) {
                 <div className="flex flex-wrap gap-1.5">
                   {summary.transitions.map((type) => (
                     <Badge key={type} tone="neutral">
-                      {transitionLabel(type)}
+                      {transitionLabel(type, catalogue)}
                     </Badge>
                   ))}
                 </div>
@@ -362,9 +404,10 @@ export function EditReview({ projectId }: EditReviewProps) {
                 />
               </div>
 
-              {musicChanged || togglesChanged ? (
+              {musicChanged || togglesChanged || cutsChanged ? (
                 <Notice tone="info">
-                  The preview still shows the old choices. Press a Render button to see and hear the change; approving renders the final sizes with these choices anyway.
+                  The preview still shows the old choices{cutsChanged ? ", including the transitions you changed under the player" : ""}. Press a Render button to see
+                  and hear the change; approving renders the final sizes with these choices anyway.
                 </Notice>
               ) : null}
             </div>
@@ -391,7 +434,7 @@ export function EditReview({ projectId }: EditReviewProps) {
               running={running}
               progress={progress}
               busy={busy}
-              canRender={canRender}
+              canRender={canRender && mayApprove}
               mediaUrl={(render) => projectMediaUrl(projectId, render.path ?? `07_edit/final_${render.preset}.mp4`, render.play_url)}
               onToggle={(preset, checked) => patch({ presets: payload.available_presets.filter((id) => (id === preset ? checked : draft.presets.includes(id))) })}
               onRender={onRender}
@@ -434,10 +477,7 @@ export function EditReview({ projectId }: EditReviewProps) {
           {canApprove ? (
             <Panel title="Approve" description="Approving saves your choices and moves the project on to the export stage.">
               <div className="flex flex-col gap-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-[13px] font-medium text-ink-muted">Your name</span>
-                  <Input value={reviewer.name} onChange={(event) => reviewer.setName(event.target.value)} placeholder={reviewer.effective} autoComplete="name" />
-                </label>
+                <ApprovingAs />
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[13px] font-medium text-ink-muted">Note for the project log (optional)</span>
                   <Textarea rows={2} value={approveNotes} onChange={(event) => setApproveNotes(event.target.value)} placeholder="Anything the team should know" />
@@ -463,9 +503,9 @@ export function EditReview({ projectId }: EditReviewProps) {
                     </span>
                   </label>
                 ) : null}
-                <Button variant="primary" icon={<Check />} loading={approve.isPending} disabled={busy || running || draft.presets.length === 0} onClick={onApprove}>
+                <ReviewButton variant="primary" className="w-full" icon={<Check />} loading={approve.isPending} disabled={busy || running || draft.presets.length === 0} onClick={onApprove}>
                   {dirty ? "Approve with my changes" : "Approve edit"}
-                </Button>
+                </ReviewButton>
               </div>
             </Panel>
           ) : status === "done" || status === "approved" ? (

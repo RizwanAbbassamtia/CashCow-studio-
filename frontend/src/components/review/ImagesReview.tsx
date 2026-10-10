@@ -1,21 +1,23 @@
 import { Check, Images, RefreshCw, RotateCcw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useCan } from "../../api/auth";
 import { ApiError, errorMessage } from "../../api/client";
 import { useApproveImages, useImagesPayload, useRedoImages, useUploadSceneImage } from "../../api/images";
 import { useProject } from "../../api/projects";
 import { useStageProgress } from "../../api/ws";
 import { hasAcceptedImage, scenesWithoutImage, type SceneImageRecord } from "../../types/images";
+import { ApprovingAs } from "../auth/ApprovingAs";
+import { ReviewButton } from "../auth/Gated";
 import { ImageSceneCard } from "../images/ImageSceneCard";
 import { buildImagesEdits, describeChanges, sceneLabel, sceneNumbers, type PendingUpload } from "../images/imagesUtils";
 import { ProgressBar } from "../projects/ProgressBar";
 import { formatUsd } from "../projects/stageMeta";
 import { Panel } from "../script/Panel";
 import { RegenerateDialog } from "../script/RegenerateDialog";
-import { useReviewer } from "../script/useReviewer";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { Input, Textarea } from "../ui/Input";
+import { Textarea } from "../ui/Input";
 import { LoadingBlock } from "../ui/Spinner";
 import { EmptyState, ErrorState, Notice } from "../ui/States";
 import { useToast } from "../ui/Toast";
@@ -34,7 +36,7 @@ export interface ImagesReviewProps {
  */
 export function ImagesReview({ projectId }: ImagesReviewProps) {
   const { toast } = useToast();
-  const reviewer = useReviewer(projectId);
+  const mayApprove = useCan("approve");
   const project = useProject(projectId);
   const progress = useStageProgress(projectId);
   const { query, payload } = useImagesPayload(projectId);
@@ -113,7 +115,6 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
   const showOverride = savedBlocking || blockedMessage !== null || missing.length > 0;
 
   const fail = (title: string, error: unknown) => toast({ tone: "error", title, description: errorMessage(error) });
-  const by = reviewer.effective;
 
   const edits = (withOverride: boolean) =>
     buildImagesEdits({ regenerate, uploads, lockedScenes, locksChanged, overrideGates: withOverride && overrideGates && showOverride });
@@ -122,7 +123,7 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
     const regenerated = regenerate.size;
     const replaced = uploads.size;
     approve.mutate(
-      { by, notes: approveNotes.trim() || undefined, edits: edits(true) },
+      { notes: approveNotes.trim() || undefined, edits: edits(true) },
       {
         onSuccess: () => {
           const parts: string[] = [];
@@ -149,7 +150,7 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
     const body = edits(false);
     if (!body) return;
     redo.mutate(
-      { by, notes: describeChanges(regenerate, uploads, locksChanged) || "Apply the queued changes.", edits: body },
+      { notes: describeChanges(regenerate, uploads, locksChanged) || "Apply the queued changes.", edits: body },
       {
         onSuccess: () => {
           toast({ tone: "info", title: "Making the pictures again", description: "The grid updates when the images stage is done; locked scenes keep their picture." });
@@ -163,7 +164,7 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
   const onRegenerateAll = (note: string) => {
     const targets = scenes.filter((scene) => !isLocked(scene)).map((scene) => ({ scene: scene.scene, note }));
     redo.mutate(
-      { by, notes: note, edits: { regenerate: targets, lock: lockedScenes } },
+      { notes: note, edits: { regenerate: targets, lock: lockedScenes } },
       {
         onSuccess: () => {
           setRegenerateAllOpen(false);
@@ -178,7 +179,7 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
   const onRetryMissing = () => {
     const targets = scenesWithoutImage(scenes).map((scene) => scene.scene);
     redo.mutate(
-      { by, notes: `Try again for ${sceneNumbers(targets)}, which have no accepted picture.` },
+      { notes: `Try again for ${sceneNumbers(targets)}, which have no accepted picture.` },
       {
         onSuccess: () => toast({ tone: "info", title: "Trying the missing pictures again", description: "Scenes with an accepted picture are kept." }),
         onError: (error) => fail("Could not start the retry", error),
@@ -272,7 +273,8 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
   };
 
   const allSelected = scenes.length > 0 && selected.size === scenes.length;
-  const disabled = busy || running;
+  // Viewers can look at the pictures but not queue, regenerate, upload or approve.
+  const disabled = busy || running || !mayApprove;
 
   // ---- states --------------------------------------------------------------
 
@@ -360,16 +362,16 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
         actions={
           <>
             {scenesWithoutImage(scenes).length > 0 ? (
-              <Button variant="secondary" size="sm" icon={<RotateCcw />} onClick={onRetryMissing} disabled={disabled}>
+              <ReviewButton variant="secondary" size="sm" icon={<RotateCcw />} onClick={onRetryMissing} disabled={disabled}>
                 Retry missing ({scenesWithoutImage(scenes).length})
-              </Button>
+              </ReviewButton>
             ) : null}
-            <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateAllOpen(true)} disabled={disabled}>
+            <ReviewButton variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateAllOpen(true)} disabled={disabled}>
               Regenerate all
-            </Button>
-            <Button variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={disabled} onClick={onApprove}>
+            </ReviewButton>
+            <ReviewButton variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={disabled} onClick={onApprove}>
               {hasChanges ? "Approve with changes" : "Approve"}
-            </Button>
+            </ReviewButton>
           </>
         }
       >
@@ -422,9 +424,9 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
               <Button variant="ghost" size="sm" onClick={() => setSelected(allSelected ? new Set() : new Set(scenes.map((scene) => scene.scene)))} disabled={disabled || scenes.length === 0}>
                 {allSelected ? "Clear ticks" : "Tick all"}
               </Button>
-              <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateTargets([...selected])} disabled={disabled || selected.size === 0}>
+              <ReviewButton variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateTargets([...selected])} disabled={disabled || selected.size === 0}>
                 Regenerate ticked{selected.size > 0 ? ` (${selected.size})` : ""}
-              </Button>
+              </ReviewButton>
             </div>
           </div>
           {scenes.length > 0 ? (
@@ -463,10 +465,7 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
 
           <Panel title="Approve" description="Approving applies the queued changes, saves the pictures and moves the project on to the edit stage.">
             <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-medium text-ink-muted">Your name</span>
-                <Input value={reviewer.name} onChange={(event) => reviewer.setName(event.target.value)} placeholder={reviewer.effective} autoComplete="name" />
-              </label>
+              <ApprovingAs />
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium text-ink-muted">Note for the project log (optional)</span>
                 <Textarea rows={2} value={approveNotes} onChange={(event) => setApproveNotes(event.target.value)} placeholder="Anything the team should know" />
@@ -506,9 +505,9 @@ export function ImagesReview({ projectId }: ImagesReviewProps) {
                   </span>
                 </label>
               ) : null}
-              <Button variant="primary" icon={<Check />} loading={approve.isPending} disabled={disabled} onClick={onApprove}>
+              <ReviewButton variant="primary" className="w-full" icon={<Check />} loading={approve.isPending} disabled={disabled} onClick={onApprove}>
                 {hasChanges ? "Approve with changes" : "Approve images"}
-              </Button>
+              </ReviewButton>
             </div>
           </Panel>
         </div>

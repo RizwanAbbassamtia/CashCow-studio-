@@ -13,6 +13,9 @@ export interface DialogProps {
   className?: string;
 }
 
+/** A width in `className` (max-w-lg, max-w-4xl!, ...) replaces the default max-w-md. */
+const OWN_WIDTH = /(^|\s)!?max-w-/;
+
 /** Small modal. Escape or a click on the backdrop closes it. */
 export function Dialog({ open, title, description, children, footer, onClose, className }: DialogProps) {
   useEffect(() => {
@@ -37,7 +40,9 @@ export function Dialog({ open, title, description, children, footer, onClose, cl
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
-        className={cn("w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-card", className)}
+        // Without tailwind-merge both widths would land in the class list, and the stylesheet
+        // order (not the class order) would decide, so the default is left out instead.
+        className={cn("w-full rounded-card border border-line bg-surface p-6 shadow-card", !OWN_WIDTH.test(className ?? "") && "max-w-md", className)}
       >
         <h2 id="dialog-title" className="text-base font-semibold text-ink">
           {title}

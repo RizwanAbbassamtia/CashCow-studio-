@@ -42,7 +42,7 @@ export function getStagePayload<T = unknown>(id: string, stage: StageName): Prom
 export function approveStage(
   id: string,
   stage: StageName,
-  body: { by: string; notes?: string; edits?: Record<string, unknown> },
+  body: StageActionBody,
 ): Promise<Project> {
   return api.post<Project>(`/api/projects/${encodeURIComponent(id)}/stage/${stage}/approve`, body);
 }
@@ -50,7 +50,6 @@ export function approveStage(
 /** Body of a redo: notes for the prompt, plus stage edits kept for that run (for example the
  * script's `locked_paragraph_ids`, so locks toggled in the editor survive a regenerate). */
 export interface RedoBody {
-  by: string;
   notes: string;
   edits?: Record<string, unknown>;
 }
@@ -59,7 +58,7 @@ export function redoStage(id: string, stage: StageName, body: RedoBody): Promise
   return api.post<Project>(`/api/projects/${encodeURIComponent(id)}/stage/${stage}/redo`, body);
 }
 
-export function skipStage(id: string, stage: StageName, body: { by: string; notes: string }): Promise<Project> {
+export function skipStage(id: string, stage: StageName, body: { notes: string }): Promise<Project> {
   return api.post<Project>(`/api/projects/${encodeURIComponent(id)}/stage/${stage}/skip`, body);
 }
 
@@ -173,7 +172,7 @@ export function useRedoStage() {
 export function useSkipStage() {
   const update = useProjectCacheUpdate();
   return useMutation({
-    mutationFn: ({ id, stage, body }: { id: string; stage: StageName; body: { by: string; notes: string } }) =>
+    mutationFn: ({ id, stage, body }: { id: string; stage: StageName; body: { notes: string } }) =>
       skipStage(id, stage, body),
     onSuccess: update,
   });

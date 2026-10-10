@@ -3,6 +3,7 @@ import { CheckCircle2, TriangleAlert } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { MIN_TEXT_SHARE, type StoryboardVariety } from "../../types";
 import { formatSeconds, type SceneBand, type SceneIssue } from "./storyboardUtils";
+import { transitionName, useTransitionCatalogue } from "./transitionCatalogue";
 
 export interface VarietyPanelProps {
   /** computed from the draft on the board */
@@ -34,6 +35,8 @@ export function VarietyPanel({ variety, savedWarnings, issues, band, onJumpToSce
   const transitionsOk = variety.scenes < 4 || variety.distinct_transitions >= 3;
   const motionsOk = variety.scenes < 4 || variety.distinct_motions >= 3;
   const clean = variety.warnings.length === 0 && issues.length === 0;
+  const catalogue = useTransitionCatalogue().data ?? null;
+  const histogram = Object.entries(variety.transition_histogram ?? {});
 
   return (
     <div className="flex flex-col gap-4">
@@ -44,6 +47,19 @@ export function VarietyPanel({ variety, savedWarnings, issues, band, onJumpToSce
         <Stat label="Transitions used" value={String(variety.distinct_transitions)} ok={transitionsOk} />
         <Stat label="Motions used" value={String(variety.distinct_motions)} ok={motionsOk} />
       </dl>
+
+      {histogram.length > 0 ? (
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">Transitions by use</p>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            {histogram.map(([id, count]) => (
+              <li key={id} className="rounded-full border border-line bg-surface-2/60 px-2 py-0.5 text-[11px] text-ink">
+                {transitionName(id, catalogue)} <span className="tabular-nums text-ink-faint">×{count}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {clean ? (
         <p className="flex items-center gap-2 text-[13px] text-ok">

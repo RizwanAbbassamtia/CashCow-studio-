@@ -6,14 +6,15 @@ import { useProject } from "../../api/projects";
 import { useApproveVoice, useRedoVoice, useUploadRecording, useVoicePayload } from "../../api/voice";
 import { useStageProgress } from "../../api/ws";
 import { TIMING_SOURCE_HELP, type VoiceApproveEdits } from "../../types/timing";
+import { ApprovingAs } from "../auth/ApprovingAs";
+import { ReviewButton } from "../auth/Gated";
 import { ProgressBar } from "../projects/ProgressBar";
 import { formatUsd } from "../projects/stageMeta";
 import { Panel } from "../script/Panel";
 import { RegenerateDialog } from "../script/RegenerateDialog";
-import { useReviewer } from "../script/useReviewer";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { Input, Textarea } from "../ui/Input";
+import { Textarea } from "../ui/Input";
 import { LoadingBlock } from "../ui/Spinner";
 import { EmptyState, ErrorState, Notice } from "../ui/States";
 import { useToast } from "../ui/Toast";
@@ -37,7 +38,6 @@ export interface VoiceReviewProps {
  */
 export function VoiceReview({ projectId }: VoiceReviewProps) {
   const { toast } = useToast();
-  const reviewer = useReviewer(projectId);
   const project = useProject(projectId);
   const progress = useStageProgress(projectId);
   const { query, payload, timing } = useVoicePayload(projectId);
@@ -96,14 +96,13 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
     setOwnOpen(false);
   };
 
-  const by = reviewer.effective;
   const notesOrUndefined = (text: string) => (text.trim() ? text.trim() : undefined);
 
   const onApprove = () => {
     const edits: VoiceApproveEdits = {};
     if (overrideGates && showOverride) edits.override_gates = true;
     approve.mutate(
-      { by, notes: notesOrUndefined(approveNotes), edits: Object.keys(edits).length > 0 ? edits : undefined },
+      { notes: notesOrUndefined(approveNotes), edits: Object.keys(edits).length > 0 ? edits : undefined },
       { onSuccess: () => approved("The images stage is next."), onError: onApproveError },
     );
   };
@@ -119,7 +118,7 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
     const edits: VoiceApproveEdits = { re_record: ids };
     if (reviewAgain) {
       redo.mutate(
-        { by, notes: note || `Re-record ${sentenceNumbers(positions)}.`, edits },
+        { notes: note || `Re-record ${sentenceNumbers(positions)}.`, edits },
         {
           onSuccess: () => {
             setReRecordOpen(false);
@@ -133,7 +132,7 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
     }
     if (overrideGates && showOverride) edits.override_gates = true;
     approve.mutate(
-      { by, notes: notesOrUndefined(note || approveNotes), edits },
+      { notes: notesOrUndefined(note || approveNotes), edits },
       { onSuccess: () => approved(`${sentenceNumbers(positions)} re-recorded first; the images stage is next.`), onError: onApproveError },
     );
   };
@@ -150,7 +149,7 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
     const edits: VoiceApproveEdits = { audio_path: path };
     if (reviewAgain) {
       redo.mutate(
-        { by, notes: note || `Use my own recording (${file.name}).`, edits },
+        { notes: note || `Use my own recording (${file.name}).`, edits },
         {
           onSuccess: () => {
             setOwnOpen(false);
@@ -163,14 +162,14 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
     }
     if (overrideGates && showOverride) edits.override_gates = true;
     approve.mutate(
-      { by, notes: notesOrUndefined(note || approveNotes), edits },
+      { notes: notesOrUndefined(note || approveNotes), edits },
       { onSuccess: () => approved("Your recording is used; the images stage is next."), onError: onApproveError },
     );
   };
 
   const onRedoAll = (notes: string) => {
     redo.mutate(
-      { by, notes },
+      { notes },
       {
         onSuccess: () => {
           setRedoOpen(false);
@@ -227,9 +226,9 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
                 <Button variant="secondary" size="sm" icon={<RotateCcw />} onClick={() => void query.refetch()}>
                   Check again
                 </Button>
-                <Button variant="secondary" size="sm" icon={<FileAudio />} onClick={() => setOwnOpen(true)} disabled={busy}>
+                <ReviewButton variant="secondary" size="sm" icon={<FileAudio />} onClick={() => setOwnOpen(true)} disabled={busy}>
                   Use my own recording
-                </Button>
+                </ReviewButton>
               </div>
             }
           />
@@ -277,15 +276,15 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
         }
         actions={
           <>
-            <Button variant="secondary" size="sm" icon={<FileAudio />} onClick={() => setOwnOpen(true)} disabled={busy || running}>
+            <ReviewButton variant="secondary" size="sm" icon={<FileAudio />} onClick={() => setOwnOpen(true)} disabled={busy || running}>
               Use my own recording
-            </Button>
-            <Button variant="secondary" size="sm" icon={<Mic />} onClick={() => setReRecordOpen(true)} disabled={busy || running || selected.size === 0}>
+            </ReviewButton>
+            <ReviewButton variant="secondary" size="sm" icon={<Mic />} onClick={() => setReRecordOpen(true)} disabled={busy || running || selected.size === 0}>
               Re-record selected{selected.size > 0 ? ` (${selected.size})` : ""}
-            </Button>
-            <Button variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy || running} onClick={onApprove}>
+            </ReviewButton>
+            <ReviewButton variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy || running} onClick={onApprove}>
               Approve
-            </Button>
+            </ReviewButton>
           </>
         }
       >
@@ -397,10 +396,7 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
 
           <Panel title="Approve" description="Approving locks this narration and its timings and moves the project on to the images stage.">
             <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-medium text-ink-muted">Your name</span>
-                <Input value={reviewer.name} onChange={(event) => reviewer.setName(event.target.value)} placeholder={reviewer.effective} autoComplete="name" />
-              </label>
+              <ApprovingAs />
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium text-ink-muted">Note for the project log (optional)</span>
                 <Textarea rows={2} value={approveNotes} onChange={(event) => setApproveNotes(event.target.value)} placeholder="Anything the team should know" />
@@ -425,12 +421,12 @@ export function VoiceReview({ projectId }: VoiceReviewProps) {
                 </label>
               ) : null}
               <div className="flex flex-col gap-2">
-                <Button variant="primary" icon={<Check />} loading={approve.isPending} disabled={busy || running} onClick={onApprove}>
+                <ReviewButton variant="primary" className="w-full" icon={<Check />} loading={approve.isPending} disabled={busy || running} onClick={onApprove}>
                   Approve narration
-                </Button>
-                <Button variant="ghost" size="sm" icon={<RefreshCw />} onClick={() => setRedoOpen(true)} disabled={busy || running}>
+                </ReviewButton>
+                <ReviewButton variant="ghost" size="sm" className="w-full" icon={<RefreshCw />} onClick={() => setRedoOpen(true)} disabled={busy || running}>
                   Record the whole narration again
-                </Button>
+                </ReviewButton>
               </div>
             </div>
           </Panel>

@@ -14,6 +14,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from .transitions import DEFAULT_TRANSITION_PACK, MotionStyle, TransitionPack
+
 Aspect = Literal["16:9", "9:16"]
 PopupPosition = Literal["top-left", "top-right", "bottom-left", "bottom-right", "center"]
 MotionPreset = Literal[
@@ -56,8 +58,14 @@ class SceneMotion(BaseModel):
 
 
 class SceneTransition(BaseModel):
-    type: str = Field(description="an xfade name from config/transitions.yaml")
+    type: str = Field(
+        description="a transition id from config/transitions.yaml (old xfade names still map)"
+    )
     duration_s: float = 0.6
+    beat: str | None = Field(
+        default=None,
+        description="the story moment at this cut: calm, reveal, topic_jump or section",
+    )
 
 
 class SceneImage(BaseModel):
@@ -116,6 +124,9 @@ class StoryboardVariety(BaseModel):
     distinct_transitions: int = 0
     distinct_motions: int = 0
     warnings: list[str] = []
+    transition_histogram: dict[str, int] = Field(
+        default={}, description="how often each transition id is used, most used first"
+    )
 
 
 class StoryboardDoc(BaseModel):
@@ -127,6 +138,12 @@ class StoryboardDoc(BaseModel):
     style_guide: str = ""
     negative_rules: str = ""
     popup_style: str = ""
+    transition_pack: TransitionPack = Field(
+        default=DEFAULT_TRANSITION_PACK, description="the channel's pack when this was planned"
+    )
+    motion_style: MotionStyle | None = Field(
+        default=None, description="this video's camera motion; null = the channel's default"
+    )
     generated_at: datetime
     model: str
     speaking_rate_wpm: int = 150
@@ -151,7 +168,10 @@ class StoryboardDraftScene(BaseModel):
     popup_text: str | None = Field(default=None, description="at most 6 words, or null")
     popup_position: str = "bottom-left"
     motion_preset: str = "zoom_in"
-    transition_type: str = "fade"
+    transition_type: str = "film_dissolve"
+    transition_beat: str | None = Field(
+        default=None, description="calm, reveal, topic_jump or section"
+    )
     on_screen_text: str | None = None
 
 
@@ -172,8 +192,16 @@ class StoryboardReviewPayload(BaseModel):
     stage: Literal["storyboard"] = "storyboard"
     storyboard: StoryboardDoc
     transitions: list[dict[str, Any]] = Field(
-        default=[], description="the allowed transition types with labels, for the pickers"
+        default=[],
+        description="every transition with label, default length, energy and packs (the "
+        "channel's pack first), for the pickers",
     )
     motion_presets: list[str] = list(MOTION_PRESETS)
     popup_positions: list[str] = list(POPUP_POSITIONS)
     scene_band_s: list[float] = [8.0, 12.0]
+    transition_pack: str = Field(
+        default=DEFAULT_TRANSITION_PACK, description="the channel's transition pack"
+    )
+    channel_motion_style: str | None = Field(
+        default=None, description="the channel's default motion style, when known"
+    )

@@ -3,8 +3,10 @@ import { ExternalLink, RefreshCw, ScanSearch, Users } from "lucide-react";
 import { formatRelative } from "../../lib/format";
 import type { Competitor } from "../../types/channel";
 import type { ScannedChannel } from "../../types/research";
+import { RunButton } from "../auth/Gated";
+import { channelPath } from "../master/routes";
 import { Badge } from "../ui/Badge";
-import { Button, LinkButton } from "../ui/Button";
+import { LinkButton } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/States";
 import { formatWhole } from "./numbers";
@@ -44,13 +46,13 @@ export function CompetitorList({ channelSlug, competitors, scanned, scannedAt, s
       actions={
         <>
           {scannedAt ? (
-            <Button variant="ghost" size="sm" icon={<RefreshCw />} onClick={() => onScan(true)} disabled={scanning} title="Ignore the cache and list every channel again">
+            <RunButton variant="ghost" size="sm" icon={<RefreshCw />} onClick={() => onScan(true)} disabled={scanning} title="Ignore the cache and list every channel again">
               Rescan all
-            </Button>
+            </RunButton>
           ) : null}
-          <Button variant="primary" size="sm" icon={<ScanSearch />} loading={scanning} onClick={() => onScan(false)} disabled={competitors.length === 0}>
+          <RunButton variant="primary" size="sm" icon={<ScanSearch />} loading={scanning} onClick={() => onScan(false)} disabled={competitors.length === 0}>
             {scanning ? "Scanning..." : "Scan now"}
-          </Button>
+          </RunButton>
         </>
       }
       flush
@@ -61,7 +63,7 @@ export function CompetitorList({ channelSlug, competitors, scanned, scannedAt, s
           title="No competitors on this channel"
           description="Add the YouTube channels you want to learn from in the channel setup, then come back and scan."
           action={
-            <LinkButton to={`/channels/${encodeURIComponent(channelSlug)}`} variant="primary" size="sm">
+            <LinkButton to={channelPath(channelSlug)} variant="primary" size="sm">
               Open channel setup
             </LinkButton>
           }

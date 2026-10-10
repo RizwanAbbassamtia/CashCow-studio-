@@ -16,8 +16,10 @@ import json
 import logging
 import os
 import re
+import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -211,6 +213,32 @@ def parse_env(text: str) -> dict[str, str]:
     return keys
 
 
+REPLACE_ATTEMPTS = 8
+"""How often a refused rename is tried before giving up (about one second in all)."""
+RETRY_REFUSED_REPLACE = sys.platform == "win32"
+"""Only Windows refuses a rename for a moment while someone else reads the file."""
+
+
+def replace_with_retry(source: Path, target: Path) -> None:
+    """``os.replace`` that waits briefly when Windows refuses it with "access denied".
+
+    Windows refuses to replace a file while another program or thread has it open without
+    delete sharing: Google Drive syncing it, a virus scanner, or a reader in another thread
+    (the WebSocket and the engine read ``job.json`` while a stage writes it). That lasts
+    milliseconds, so the rename is tried again a few times before the error is raised.
+    """
+    delay = 0.02
+    for attempt in range(REPLACE_ATTEMPTS):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if not RETRY_REFUSED_REPLACE or attempt == REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 0.25)
+
+
 def atomic_write_text(path: Path, text: str, *, private: bool = False) -> None:
     """Write a file in one step: a temp file next to it, then an atomic replace."""
     path = Path(path)
@@ -229,7 +257,7 @@ def atomic_write_text(path: Path, text: str, *, private: bool = False) -> None:
                 os.chmod(tmp, 0o600)
             except OSError:
                 pass  # Windows only knows the read-only flag; the folder is per-user anyway
-        os.replace(tmp, path)
+        replace_with_retry(tmp, path)
     except BaseException:
         try:
             tmp.unlink()

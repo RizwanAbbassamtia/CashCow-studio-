@@ -14,6 +14,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
+from .transitions import (
+    DEFAULT_MOTION_STYLE,
+    DEFAULT_TRANSITION_PACK,
+    MotionStyle,
+    TransitionPack,
+)
+
 Language = Literal[
     "English", "Spanish", "Hindi", "Arabic", "Portuguese", "Indonesian",
     "Japanese", "German", "French", "Russian", "Vietnamese", "Turkish",
@@ -143,6 +150,16 @@ class ImageConfig(BaseModel):
     popup_style: str = ""
     api_key_env: str = Field(default="", pattern=r"^[A-Z0-9_]*$")
     monthly_budget_images: int | None = None
+    # Transitions v2 (docs/TRANSITIONS-V2-CONTRACT.md): the look of the cuts between pictures
+    # and how the camera moves over each picture. A storyboard may override the motion style.
+    transition_pack: TransitionPack = Field(
+        default=DEFAULT_TRANSITION_PACK,
+        description="cinematic, clean or dynamic: the transitions the storyboard AI picks from",
+    )
+    motion_style: MotionStyle = Field(
+        default=DEFAULT_MOTION_STYLE,
+        description="ken_burns (pan and zoom) or parallax (2.5D depth, needs the depth model)",
+    )
 
 
 class ThumbnailConfig(BaseModel):

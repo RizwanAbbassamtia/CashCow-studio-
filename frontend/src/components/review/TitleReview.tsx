@@ -1,7 +1,6 @@
 import { Check, ExternalLink, Flag, RotateCcw, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { useChannel } from "../../api/channels";
 import { errorMessage } from "../../api/client";
 import { useApproveStage, useProject, useRedoStage, useStagePayload } from "../../api/projects";
 import { cn } from "../../lib/cn";
@@ -13,8 +12,8 @@ import {
   type TitleReviewPayload,
   type TitleVariant,
 } from "../../types/title";
+import { ReviewButton } from "../auth/Gated";
 import { NotesDialog } from "../projects/NotesDialog";
-import { useReviewerName } from "../projects/useReviewerName";
 import { formatMultiple, formatPercent, formatViews } from "../research/numbers";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
@@ -154,8 +153,6 @@ function VariantCard({
 export function TitleReview({ projectId }: TitleReviewProps) {
   const { toast } = useToast();
   const project = useProject(projectId);
-  const channel = useChannel(project.data?.channel_slug);
-  const { effective: by } = useReviewerName(channel.data?.reviewer ?? "");
   const status = project.data?.stages.title.status ?? "pending";
   const hasRun = status !== "pending" && status !== "running";
   const payload = useStagePayload<TitleReviewPayload>(projectId, "title", hasRun);
@@ -210,7 +207,7 @@ export function TitleReview({ projectId }: TitleReviewProps) {
   const onApprove = () => {
     const edits: TitleApproveEdits = edited ? { title_text: trimmed } : { chosen_index: activeIndex ?? undefined };
     approve.mutate(
-      { id: projectId, stage: "title", body: { by, edits: edits as Record<string, unknown> } },
+      { id: projectId, stage: "title", body: { edits: edits as Record<string, unknown> } },
       {
         onSuccess: () => toast({ tone: "success", title: "Title approved", description: `"${trimmed}" - the script stage runs next.` }),
         onError: (error) => toast({ tone: "error", title: "Could not approve the title", description: errorMessage(error) }),
@@ -220,7 +217,7 @@ export function TitleReview({ projectId }: TitleReviewProps) {
 
   const onRedo = (notes: string) => {
     redo.mutate(
-      { id: projectId, stage: "title", body: { by, notes } },
+      { id: projectId, stage: "title", body: { notes } },
       {
         onSuccess: () => {
           setRedoOpen(false);
@@ -310,12 +307,12 @@ export function TitleReview({ projectId }: TitleReviewProps) {
                 Back to variant #{activeVariant.index + 1}
               </Button>
             ) : null}
-            <Button variant="secondary" size="sm" icon={<RotateCcw />} onClick={() => setRedoOpen(true)} disabled={approve.isPending || redo.isPending}>
+            <ReviewButton variant="secondary" size="sm" icon={<RotateCcw />} onClick={() => setRedoOpen(true)} disabled={approve.isPending || redo.isPending}>
               Redo with notes
-            </Button>
-            <Button variant="primary" size="sm" icon={<Check />} onClick={onApprove} loading={approve.isPending} disabled={!canApprove}>
+            </ReviewButton>
+            <ReviewButton variant="primary" size="sm" icon={<Check />} onClick={onApprove} loading={approve.isPending} disabled={!canApprove}>
               Use this title and continue
-            </Button>
+            </ReviewButton>
           </div>
         </div>
       ) : doc.chosen_title || project.data?.title ? (

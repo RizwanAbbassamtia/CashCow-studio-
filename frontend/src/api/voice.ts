@@ -11,20 +11,18 @@ import { queryKeys } from "./keys";
 import { approveStage, redoStage, useProjectCacheUpdate, useStagePayload } from "./projects";
 
 export interface VoiceApproveBody {
-  by: string;
   notes?: string;
   edits?: VoiceApproveEdits;
 }
 
 export interface VoiceRedoBody {
-  by: string;
   notes: string;
   /** kept for the next run: `re_record` or `audio_path` reach the stage as `ctx.edits` */
   edits?: VoiceApproveEdits;
 }
 
 function asActionBody(body: VoiceApproveBody | VoiceRedoBody): StageActionBody {
-  const out: StageActionBody = { by: body.by };
+  const out: StageActionBody = {};
   if (body.notes) out.notes = body.notes;
   if (body.edits) out.edits = body.edits as Record<string, unknown>;
   return out;
@@ -35,7 +33,7 @@ export function approveVoice(projectId: string, body: VoiceApproveBody) {
 }
 
 export function redoVoice(projectId: string, body: VoiceRedoBody) {
-  return redoStage(projectId, "voice", { by: body.by, notes: body.notes, ...(body.edits ? { edits: body.edits as Record<string, unknown> } : {}) });
+  return redoStage(projectId, "voice", { notes: body.notes, ...(body.edits ? { edits: body.edits as Record<string, unknown> } : {}) });
 }
 
 /** Uploads a person's own narration into `05_voice/`; the result path goes into `edits.audio_path`. */

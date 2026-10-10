@@ -1,18 +1,20 @@
 import { Film, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useCan } from "../api/auth";
 import { useChannels } from "../api/channels";
 import { useProjects } from "../api/projects";
 import { useProjectEvents } from "../api/ws";
+import { GatedLinkButton } from "../components/auth/Gated";
 import { LiveIndicator } from "../components/projects/LiveIndicator";
 import { matchesFilters, ProjectFilters, type ProjectFiltersValue } from "../components/projects/ProjectFilters";
 import { ProjectsTable } from "../components/projects/ProjectsTable";
 import { STAGE_LABELS } from "../components/projects/stageMeta";
-import { LinkButton } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LoadingBlock } from "../components/ui/Spinner";
 import { EmptyState, ErrorState } from "../components/ui/States";
+import { DENIED_REASONS } from "../lib/roles";
 import { STAGE_NAMES, type StageName } from "../types/channel";
 
 export interface ProjectsPageProps {
@@ -24,11 +26,12 @@ function asStage(value: string | undefined): "" | StageName {
   return value && (STAGE_NAMES as readonly string[]).includes(value) ? (value as StageName) : "";
 }
 
-/** /projects - every video in production with its channel, stage, status and cost. */
+/** /automation/projects - every video in production with its channel, stage, status and cost. */
 export function ProjectsPage({ stageFilter }: ProjectsPageProps) {
   const channels = useChannels();
   const projects = useProjects();
   const events = useProjectEvents();
+  const mayRun = useCan("run");
   const lockedStage = asStage(stageFilter);
 
   const [filters, setFilters] = useState<ProjectFiltersValue>({ channel: "", stage: lockedStage, status: "", search: "" });
@@ -57,9 +60,9 @@ export function ProjectsPage({ stageFilter }: ProjectsPageProps) {
         actions={
           <>
             <LiveIndicator state={events.state} />
-            <LinkButton to="/research" variant="primary" icon={<Search />}>
+            <GatedLinkButton allowed={mayRun} reason={DENIED_REASONS.run} to="/automation/research" variant="primary" icon={<Search />}>
               New video from research
-            </LinkButton>
+            </GatedLinkButton>
           </>
         }
       />
@@ -77,9 +80,9 @@ export function ProjectsPage({ stageFilter }: ProjectsPageProps) {
             title="No videos in production yet"
             description="Run research on a channel and start production from the AI pick, from any candidate, or from your own topic."
             action={
-              <LinkButton to="/research" variant="primary" size="sm" icon={<Search />}>
+              <GatedLinkButton allowed={mayRun} reason={DENIED_REASONS.run} to="/automation/research" variant="primary" size="sm" icon={<Search />}>
                 Go to Research
-              </LinkButton>
+              </GatedLinkButton>
             }
           />
         ) : rows.length === 0 ? (

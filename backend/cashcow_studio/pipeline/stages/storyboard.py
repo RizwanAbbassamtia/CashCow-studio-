@@ -3,11 +3,20 @@ popup and a transition each. Claude drafts; deterministic rules then fix what th
 wrong (scene length, repeated motion or transition, long popups, text share, style prefix).
 
 Reads ``03_script/script.json`` (+ ``speech.json`` for timing), the channel's image style
-guide and popup style, and ``config/transitions.yaml``; writes ``04_storyboard/storyboard.json``.
-Approval edits replace the document; the rules run again on everything that is not locked.
-A redo reads the previous ``storyboard.json`` first: every field a reviewer locked (image
-prompt, popup, motion, transition, the sentence grouping behind a locked narration) is
-carried over to the new draft, so a regenerate never throws approved work away.
+guide, popup style and transition pack, and ``config/transitions.yaml``; writes
+``04_storyboard/storyboard.json``. Approval edits replace the document; the rules run again on
+everything that is not locked. A redo reads the previous ``storyboard.json`` first: every
+field a reviewer locked (image prompt, popup, motion, transition, the sentence grouping behind
+a locked narration) is carried over to the new draft, so a regenerate never throws approved
+work away.
+
+Transitions (docs/TRANSITIONS-V2-CONTRACT.md section 4): the AI picks one per cut from the
+channel's pack by the story beat (calm, reveal, topic jump, section end); the fix-ups then
+map old xfade names to v2 ids and keep the cuts varied: never the same transition twice in a
+row, at most two of one id in any ten cuts, signature effects (light leak, film burn) at most
+once a minute, never two high-energy cuts in a row, at most one dip per script section, and
+the pack's closer on the last scene. A transition the reviewer picked by hand wins over its
+unchanged neighbours; locked ones never change.
 """
 
 from __future__ import annotations
@@ -41,6 +50,15 @@ from ...models.storyboard import (
     StoryboardDraft,
     StoryboardReviewPayload,
     StoryboardVariety,
+)
+from ...models.transitions import (
+    BEAT_LABELS,
+    BEATS,
+    DEFAULT_TRANSITION_PACK,
+    ENERGY_LABELS,
+    PACK_LABELS,
+    poster_url,
+    preview_url,
 )
 from ...policy import gates
 from ...storage.settings_store import atomic_write_text
@@ -82,6 +100,8 @@ class SentenceInfo:
     id: str
     text: str
     est_s: float
+    section: str = ""
+    """The script section the sentence belongs to (``sec-01``...); "" when unknown."""
 
 
 @dataclass
@@ -97,6 +117,13 @@ class Rules:
     popup_style: str
     max_popup_words: int = MAX_POPUP_WORDS
     min_text_share: float = 0.35
+    pack: str = DEFAULT_TRANSITION_PACK
+    """The channel's transition pack: the AI picks from it and replacements come from it."""
+    enforce_pack: bool = True
+    """Replace transitions from other packs (the AI's draft); a reviewer may pick any."""
+    pinned_transitions: frozenset[str] = frozenset()
+    """First sentence ids of scenes whose transition the reviewer just picked by hand: their
+    unchanged neighbours give way to them."""
 
 
 # Timing -----------------------------------------------------------------------------------------
@@ -106,10 +133,29 @@ def estimate_seconds(text: str, wpm: int) -> float:
     return round(max(MIN_SENTENCE_S, count_words(text) / max(60, wpm) * 60.0), 2)
 
 
+def sentence_sections(script: Any) -> dict[str, str]:
+    """``sentence id -> section id`` from the script's sections (empty when it has none)."""
+    sections: dict[str, str] = {}
+    for section in getattr(script, "sections", None) or []:
+        for paragraph in getattr(section, "paragraphs", None) or []:
+            for sentence in getattr(paragraph, "sentences", None) or []:
+                sections.setdefault(str(sentence.id), str(getattr(section, "id", "") or ""))
+    return sections
+
+
+def section_names(script: Any) -> dict[str, str]:
+    return {
+        str(getattr(section, "id", "")): str(getattr(section, "name", "") or "")
+        for section in getattr(script, "sections", None) or []
+    }
+
+
 def sentence_infos(script: Any, speech: SpeechDoc | None, wpm: int) -> list[SentenceInfo]:
     spoken = {s.id: s.speech_text for s in speech.sentences} if speech else {}
+    sections = sentence_sections(script)
     return [
-        SentenceInfo(s.id, s.text, estimate_seconds(spoken.get(s.id) or s.text, wpm))
+        SentenceInfo(s.id, s.text, estimate_seconds(spoken.get(s.id) or s.text, wpm),
+                     sections.get(s.id, ""))
         for s in script.sentences()
     ]
 
@@ -200,6 +246,25 @@ def motion_for(preset: str) -> SceneMotion:
     return SceneMotion(preset=preset, start_rect=list(start), end_rect=list(end))  # type: ignore[arg-type]
 
 
+def _beat(value: str | None) -> str | None:
+    """The draft's beat for a cut, or None when it named none (or something unknown)."""
+    text = (value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {"topic": "topic_jump", "jump": "topic_jump", "section_end": "section",
+               "boundary": "section", "section_boundary": "section", "end": "section"}
+    text = aliases.get(text, text)
+    return text if text in BEATS else None
+
+
+def draft_transition(raw_type: str | None, raw_beat: str | None, rules: Rules) -> SceneTransition:
+    """The draft's transition as written (the fix-ups map and check it later)."""
+    name = (raw_type or "").strip() or rules.catalog.default
+    return SceneTransition(
+        type=name,
+        duration_s=rules.catalog.duration_for(name, rules.fmt, rules.pack),
+        beat=_beat(raw_beat),
+    )
+
+
 def prompt_from_narration(narration: str) -> str:
     words = " ".join(narration.split()[:14]).rstrip(".,;:!?")
     return (
@@ -237,10 +302,7 @@ def scenes_from_draft(
                     position=_position(raw.popup_position, index),
                 ),
                 motion=motion_for(preset),
-                transition_out=SceneTransition(
-                    type=(raw.transition_type or "").strip() or rules.catalog.default,
-                    duration_s=rules.catalog.duration_for(raw.transition_type or "", rules.fmt),
-                ),
+                transition_out=draft_transition(raw.transition_type, raw.transition_beat, rules),
                 on_screen_text=(raw.on_screen_text or "").strip() or None,
             )
         )
@@ -298,7 +360,8 @@ def _new_scene(chunk: list[SentenceInfo], index: int, rules: Rules, *, note: str
                          position=like.popup.position if like else POPUP_POSITIONS[index % 5]),
         motion=motion_for(preset),
         transition_out=SceneTransition(
-            type=transition, duration_s=rules.catalog.duration_for(transition, rules.fmt)
+            type=transition,
+            duration_s=rules.catalog.duration_for(transition, rules.fmt, rules.pack),
         ),
     )
     if note:
@@ -454,55 +517,315 @@ def fix_motion(scenes: list[Scene], warnings: list[str]) -> None:
         scenes[target].notes.append(f"Motion changed to {preset} by the app (same as a neighbour).")
 
 
-def fix_transitions(scenes: list[Scene], rules: Rules, warnings: list[str]) -> None:
-    """Known types only, no type twice in a row, the last scene fades out."""
-    types = rules.catalog.types
-    for scene in scenes:
+WINDOW_CUTS = 10
+MAX_PER_WINDOW = 2
+"""One transition at most this many times in any ``WINDOW_CUTS`` consecutive cuts."""
+
+
+def transition_label(catalog: TransitionCatalog, name: str | None) -> str:
+    transition = catalog.get(name)
+    return transition.label if transition else str(name or "")
+
+
+def is_dip(catalog: TransitionCatalog, name: str | None) -> bool:
+    """A transition that closes a section: dip to black or white, film burn."""
+    transition = catalog.get(name)
+    return transition is not None and "section" in transition.beats
+
+
+def is_boundary_only(catalog: TransitionCatalog, name: str | None) -> bool:
+    """A dip that reads as "the chapter ends" (dip to black, film burn): kept for the end of a
+    script section. Dip to white also suits a reveal, so it may come mid-section."""
+    transition = catalog.get(name)
+    return (transition is not None and "section" in transition.beats
+            and "reveal" not in transition.beats)
+
+
+def signature_names(catalog: TransitionCatalog) -> str:
+    """"Warm light leak and Film burn": the transitions with a minimum gap, for notes."""
+    labels = [t.label for t in catalog.transitions if t.min_gap_s > 0]
+    if len(labels) <= 1:
+        return labels[0] if labels else ""
+    return ", ".join(labels[:-1]) + " and " + labels[-1]
+
+
+def scene_sections(scenes: list[Scene], sentences: list[SentenceInfo] | None) -> list[str]:
+    """The script section of every scene (its first sentence's); "" when unknown."""
+    by_id = {s.id: s.section for s in sentences or []}
+    return [by_id.get(scene.sentence_ids[0], "") if scene.sentence_ids else "" for scene in scenes]
+
+
+@dataclass
+class _Cuts:
+    """Working state of the transition fix-ups: the cut out of every scene, in order.
+
+    ``ids`` holds v2 ids (an unknown locked name stays as written); a cut is ``decided`` once
+    it is final: locked, picked by the reviewer, the closer, or already checked.
+    """
+
+    catalog: TransitionCatalog
+    ids: list[str | None]
+    times: list[float]
+    sections: list[str]
+    decided: list[bool]
+
+    def _other(self, i: int, j: int) -> str | None:
+        if j == i or not 0 <= j < len(self.ids) or not self.decided[j]:
+            return None
+        return self.ids[j]
+
+    def problems(self, i: int, candidate: str, *, strict: bool = True) -> list[str]:
+        """Why ``candidate`` may not go on cut ``i`` next to the decided cuts (empty = fine).
+
+        The adjacency and energy rules always count; ``strict`` adds the ten-cut window, the
+        minimum gap of signature effects and the one-dip-per-section rule.
+        """
+        catalog = self.catalog
+        count = len(self.ids)
+        reasons: list[str] = []
+        if self._other(i, i - 1) == candidate:
+            reasons.append("the cut before uses it too")
+        if self._other(i, i + 1) == candidate:
+            reasons.append("the next cut uses it too")
+        transition = catalog.get(candidate)
+        if transition is not None and transition.energy == "high":
+            neighbours = [self._other(i, j) for j in (i - 1, i + 1)]
+            if any(n is not None and catalog.energy_of(n) == "high" for n in neighbours):
+                reasons.append("two high-energy cuts in a row")
+        if not strict:
+            return reasons
+        last_start = max(0, count - WINDOW_CUTS)
+        for start in range(max(0, i - WINDOW_CUTS + 1), min(i, last_start) + 1):
+            window = range(start, min(count, start + WINDOW_CUTS))
+            uses = 1 + sum(1 for j in window if self._other(i, j) == candidate)
+            if uses > MAX_PER_WINDOW:
+                reasons.append(f"it would be used more than {MAX_PER_WINDOW} times in "
+                               f"{WINDOW_CUTS} cuts")
+                break
+        gap = transition.min_gap_s if transition is not None else 0.0
+        if gap > 0:
+            # Signature effects (light leak, film burn) keep their distance from each other.
+            for j in range(count):
+                other = catalog.get(self._other(i, j))
+                if other is None or other.min_gap_s <= 0:
+                    continue
+                limit = max(gap, other.min_gap_s)
+                if abs(self.times[j] - self.times[i]) < limit:
+                    reasons.append(f"{signature_names(catalog)} are kept at least {limit:g} "
+                                   "seconds apart")
+                    break
+        inside = i < count - 1 and bool(self.sections[i])
+        if inside and is_boundary_only(catalog, candidate) and \
+                self.sections[i + 1] == self.sections[i]:
+            reasons.append("dips are kept for the end of a script section")
+        if inside and is_dip(catalog, candidate):
+            same_section = [
+                j for j in range(count - 1)
+                if self.sections[j] == self.sections[i] and is_dip(catalog, self._other(i, j))
+            ]
+            if same_section:
+                reasons.append("a script section gets at most one dip")
+        return reasons
+
+    def usage(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for j, name in enumerate(self.ids):
+            if name and self.decided[j]:
+                counts[name] = counts.get(name, 0) + 1
+        return counts
+
+
+def _choose_transition(
+    cuts: _Cuts, i: int, rules: Rules, *, original: str | None, beat: str | None,
+    boundary: bool, may_keep: bool,
+) -> str:
+    """The best transition for cut ``i`` from the channel's pack.
+
+    Fits every rule if anything can; prefers the story beat of the draft (or of the
+    transition it replaces, or "section" at a section boundary), then the same energy, then
+    whatever is used least so far. Dips are kept for section boundaries. ``may_keep`` lets
+    the original stay when nothing fits the strict rules but it fits the basic ones.
+    """
+    catalog = rules.catalog
+    pool = catalog.for_pack(rules.pack) or list(catalog.transitions)
+    replaced = catalog.get(original)
+    want_energy = replaced.energy if replaced is not None else "calm"
+    want_beat = beat or (replaced.beats[0] if replaced is not None and replaced.beats else None)
+    if want_beat is None and boundary:
+        want_beat = "section"
+    usage = cuts.usage()
+    order = {t.type: k for k, t in enumerate(catalog.transitions)}
+
+    def rank(t: Any) -> tuple[int, int, int, int, int]:
+        dip_mid_section = 1 if ("section" in t.beats and not boundary) else 0
+        beat_miss = 0 if want_beat is None or want_beat in t.beats else 1
+        energy_miss = 0 if t.energy == want_energy else (1 if t.energy != "high" else 2)
+        return (dip_mid_section, beat_miss, energy_miss, usage.get(t.type, 0), order[t.type])
+
+    for strict in (True, False):
+        if not strict and may_keep and original and not cuts.problems(i, original, strict=False):
+            return original
+        options = [t for t in pool if t.type != original
+                   and not cuts.problems(i, t.type, strict=strict)]
+        if options:
+            return min(options, key=rank).type
+    options = [t for t in catalog.transitions if not cuts.problems(i, t.type, strict=False)]
+    return min(options, key=rank).type if options else catalog.default
+
+
+def _set_transition(scene: Scene, name: str, rules: Rules) -> None:
+    scene.transition_out = SceneTransition(
+        type=name,
+        duration_s=rules.catalog.duration_for(name, rules.fmt, rules.pack),
+        beat=scene.transition_out.beat,
+    )
+
+
+def fix_transitions(
+    scenes: list[Scene], rules: Rules, warnings: list[str],
+    sentences: list[SentenceInfo] | None = None,
+) -> None:
+    """The transition rules of docs/TRANSITIONS-V2-CONTRACT.md section 4, in place.
+
+    1. Old xfade names become their v2 ids; unknown names (and, for the AI's draft, ids
+       outside the channel's pack) are replaced from the pack.
+    2. The last scene ends with the pack's closer (``dip_black``).
+    3. Left to right, every unlocked cut must differ from its neighbours, never be the second
+       high-energy cut in a row, appear at most twice in any ten cuts, keep light leaks and
+       film burns a minute apart and give each script section at most one dip.
+    4. A cut the reviewer just picked wins over unchanged neighbours (step 3 works around
+       it) and only changes when it clashes with another hand-picked or locked cut.
+
+    Locked cuts never change; clashes between them are reported in ``warnings``.
+    """
+    count = len(scenes)
+    if count == 0:
+        return
+    catalog = rules.catalog
+    closer = catalog.closer_for(rules.pack)
+    sections = scene_sections(scenes, sentences)
+    pinned = [bool(s.sentence_ids) and s.sentence_ids[0] in rules.pinned_transitions
+              for s in scenes]
+    cuts = _Cuts(catalog, ids=[None] * count, times=[s.est_end_s for s in scenes],
+                 sections=sections, decided=[False] * count)
+    replace_reason: dict[int, str] = {}
+
+    # 1. Names.
+    for i, scene in enumerate(scenes):
+        current = scene.transition_out
         if scene.locked.transition_out:
+            cuts.ids[i] = catalog.resolve(current.type) or current.type
+            cuts.decided[i] = True
             continue
-        if scene.transition_out.type not in types:
+        if i == count - 1:
+            continue
+        resolved = catalog.resolve(current.type)
+        if resolved is None:
+            replace_reason[i] = f"Transition '{current.type}' is not in the list"
+            continue
+        if resolved != current.type:
             scene.notes.append(
-                f"Transition '{scene.transition_out.type}' is not in the list; "
-                f"replaced with {rules.catalog.default}."
+                f"Transition '{current.type}' is an old name; it is now "
+                f"{transition_label(catalog, resolved)}."
             )
-            scene.transition_out = SceneTransition(
-                type=rules.catalog.default,
-                duration_s=rules.catalog.duration_for(rules.catalog.default, rules.fmt),
-            )
-        elif scene.transition_out.duration_s <= 0:
-            scene.transition_out.duration_s = rules.catalog.duration_for(
-                scene.transition_out.type, rules.fmt
-            )
-    if scenes and not scenes[-1].locked.transition_out:
-        last = scenes[-1]
-        if last.transition_out.type != rules.catalog.last_scene:
+            _set_transition(scene, resolved, rules)
+        elif current.duration_s <= 0:
+            current.duration_s = catalog.duration_for(resolved, rules.fmt, rules.pack)
+        cuts.ids[i] = resolved
+        entry = catalog.get(resolved)
+        if pinned[i]:
+            cuts.decided[i] = True
+        elif rules.enforce_pack and entry is not None and not entry.in_pack(rules.pack):
+            pack_label = PACK_LABELS.get(rules.pack, rules.pack)
+            replace_reason[i] = f"{entry.label} is not in the channel's {pack_label} pack"
+
+    # 2. The closer (unless the reviewer just picked another ending by hand).
+    last = scenes[-1]
+    picked_ending = catalog.resolve(last.transition_out.type) if pinned[-1] else None
+    if not last.locked.transition_out and picked_ending:
+        if picked_ending != last.transition_out.type:
+            _set_transition(last, picked_ending, rules)
+        cuts.ids[-1] = picked_ending
+        cuts.decided[-1] = True
+    elif not last.locked.transition_out:
+        if last.transition_out.type != closer or last.transition_out.duration_s <= 0:
             last.transition_out = SceneTransition(
-                type=rules.catalog.last_scene,
-                duration_s=rules.catalog.duration_for(rules.catalog.last_scene, rules.fmt),
+                type=closer, duration_s=catalog.duration_for(closer, rules.fmt, rules.pack),
+                beat=last.transition_out.beat or "section",
             )
-    for i in range(1, len(scenes)):
-        if scenes[i].transition_out.type != scenes[i - 1].transition_out.type:
+        cuts.ids[-1] = closer
+        cuts.decided[-1] = True
+
+    # 3. The AI's (and unchanged) cuts: section ends first (their dips win), then the rest,
+    #    each left to right.
+    def is_boundary(i: int) -> bool:
+        return bool(sections[i]) and sections[i + 1] != sections[i]
+
+    order = [i for i in range(count - 1) if is_boundary(i)] + \
+        [i for i in range(count - 1) if not is_boundary(i)]
+    for i in order:
+        if cuts.decided[i]:
             continue
-        locked_i = scenes[i].locked.transition_out or i == len(scenes) - 1
-        target = _unlocked_neighbour(i, locked_i, scenes[i - 1].locked.transition_out)
-        if target is None:
+        scene = scenes[i]
+        current_id = cuts.ids[i]
+        boundary = is_boundary(i)
+        if i in replace_reason:
+            new = _choose_transition(cuts, i, rules, original=current_id,
+                                     beat=scene.transition_out.beat, boundary=boundary,
+                                     may_keep=False)
+            reason = replace_reason[i]
+            if reason.startswith("Transition '"):
+                scene.notes.append(f"{reason}; replaced with {transition_label(catalog, new)}.")
+            else:
+                scene.notes.append(f"Transition changed to {transition_label(catalog, new)} "
+                                   f"by the app ({reason}).")
+            _set_transition(scene, new, rules)
+            cuts.ids[i] = new
+        elif current_id is not None:
+            problems = cuts.problems(i, current_id)
+            if problems:
+                new = _choose_transition(cuts, i, rules, original=current_id,
+                                         beat=scene.transition_out.beat, boundary=boundary,
+                                         may_keep=True)
+                if new != current_id:
+                    scene.notes.append(f"Transition changed to {transition_label(catalog, new)} "
+                                       f"by the app ({problems[0]}).")
+                    _set_transition(scene, new, rules)
+                    cuts.ids[i] = new
+        cuts.decided[i] = True
+
+    # 4. Hand-picked cuts that clash with each other or with a locked cut: left to right, so
+    #    of two clashing picks the later one gives way.
+    hand_picked = [i for i in range(count - 1) if pinned[i] and not scenes[i].locked.transition_out
+                   and cuts.ids[i] is not None]
+    for i in hand_picked:
+        cuts.decided[i] = False
+    for i in hand_picked:
+        problems = cuts.problems(i, cuts.ids[i] or "", strict=False)
+        if problems:
+            new = _choose_transition(cuts, i, rules, original=cuts.ids[i],
+                                     beat=scenes[i].transition_out.beat,
+                                     boundary=is_boundary(i), may_keep=False)
+            scenes[i].notes.append(f"Transition changed to {transition_label(catalog, new)} by "
+                                   f"the app ({problems[0]}).")
+            _set_transition(scenes[i], new, rules)
+            cuts.ids[i] = new
+        cuts.decided[i] = True
+
+    # 5. What could not be fixed.
+    for i in range(1, count):
+        before, after = cuts.ids[i - 1], cuts.ids[i]
+        if before is not None and before == after:
             warnings.append(
-                f"Scenes {i} and {i + 1} both end with {scenes[i].transition_out.type} "
+                f"Scenes {i} and {i + 1} both end with {transition_label(catalog, after)} "
                 "and are locked."
             )
-            continue
-        avoid = {
-            scenes[j].transition_out.type for j in (target - 1, target + 1) if 0 <= j < len(scenes)
-        }
-        if target != len(scenes) - 1:
-            avoid.add(rules.catalog.last_scene)
-        new_type = next((t for t in types if t not in avoid), rules.catalog.default)
-        scenes[target].transition_out = SceneTransition(
-            type=new_type, duration_s=rules.catalog.duration_for(new_type, rules.fmt)
-        )
-        scenes[target].notes.append(
-            f"Transition changed to {new_type} by the app (used twice in a row)."
-        )
+        elif (before is not None and after is not None
+              and catalog.get(before) is not None and catalog.get(after) is not None
+              and catalog.energy_of(before) == "high" and catalog.energy_of(after) == "high"):
+            warnings.append(
+                f"Scenes {i} and {i + 1} both end with a high-energy transition and are locked."
+            )
 
 
 def _popup_offsets(scene: Scene) -> tuple[float, float]:
@@ -624,14 +947,25 @@ def variety_of(scenes: list[Scene], rules: Rules, warnings: list[str]) -> Storyb
         warnings.append(
             "Same picture as the previous scene: " + ", ".join(f"#{i}" for i in repeated)
         )
+    histogram = transition_histogram(scenes, rules.catalog)
     return StoryboardVariety(
         scenes=len(scenes),
         avg_scene_s=round(sum(s.est_duration_s for s in scenes) / len(scenes), 2),
         popup_share=round(sum(1 for s in scenes if s.has_text) / len(scenes), 3),
-        distinct_transitions=len({s.transition_out.type for s in scenes}),
+        distinct_transitions=len(histogram),
         distinct_motions=len({s.motion.preset for s in scenes}),
         warnings=warnings,
+        transition_histogram=histogram,
     )
+
+
+def transition_histogram(scenes: list[Scene], catalog: TransitionCatalog) -> dict[str, int]:
+    """``{transition id: uses}``, most used first (old names counted as their v2 id)."""
+    counts: dict[str, int] = {}
+    for scene in scenes:
+        name = catalog.resolve(scene.transition_out.type) or scene.transition_out.type
+        counts[name] = counts.get(name, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
 def _linearise(scenes: list[Scene], sentences: list[SentenceInfo], rules: Rules) -> list[Scene]:
@@ -771,7 +1105,7 @@ def fix_up(doc: StoryboardDoc, sentences: list[SentenceInfo], rules: Rules) -> S
     scenes = fix_scene_lengths(scenes, sentences, rules)
     fix_timings(scenes, sentences)
     fix_motion(scenes, warnings)
-    fix_transitions(scenes, rules, warnings)
+    fix_transitions(scenes, rules, warnings, sentences)
     fix_popups(scenes, sentences, rules, warnings)
     fix_prompts(scenes, rules)
     fix_timings(scenes, sentences)
@@ -781,14 +1115,17 @@ def fix_up(doc: StoryboardDoc, sentences: list[SentenceInfo], rules: Rules) -> S
 
 
 def gate_context(doc: StoryboardDoc, catalog: TransitionCatalog) -> dict[str, Any]:
+    """The storyboard's measurements for the policy gates. Transitions are judged by their
+    v2 id, so an old name next to its new equivalent counts as a repeat."""
     return {
         "format": doc.format,
-        "known_transitions": catalog.types,
+        "known_transitions": catalog.known_names,
+        "transition_histogram": transition_histogram(doc.scenes, catalog),
         "scenes": [
             {
                 "est_duration_s": s.est_duration_s,
                 "motion_preset": s.motion.preset,
-                "transition_type": s.transition_out.type,
+                "transition_type": catalog.resolve(s.transition_out.type) or s.transition_out.type,
                 "popup_text": s.popup.text,
                 "on_screen_text": s.on_screen_text,
                 "narration": s.narration,
@@ -818,18 +1155,38 @@ def write_storyboard(stage_dir: Path, doc: StoryboardDoc) -> Path:
     return path
 
 
-def review_payload(doc: StoryboardDoc, rules: Rules) -> dict[str, Any]:
+def transition_options(rules: Rules) -> list[dict[str, Any]]:
+    """Every transition for the pickers, the channel's pack first, with its default length
+    for this video (pack range and Shorts factor applied) and its preview URLs."""
+    catalog = rules.catalog
+    ordered = sorted(catalog.transitions, key=lambda t: 0 if t.in_pack(rules.pack) else 1)
+    return [
+        {
+            "type": t.type,
+            "id": t.type,
+            "label": t.label,
+            "duration_s": catalog.duration_for(t.type, rules.fmt, rules.pack),
+            "energy": t.energy,
+            "packs": list(t.packs),
+            "in_pack": t.in_pack(rules.pack),
+            "feel": t.feel,
+            "beats": list(t.beats),
+            "preview_url": preview_url(t.type),
+            "poster_url": poster_url(t.type),
+        }
+        for t in ordered
+    ]
+
+
+def review_payload(
+    doc: StoryboardDoc, rules: Rules, channel_motion_style: str | None = None
+) -> dict[str, Any]:
     return StoryboardReviewPayload(
         storyboard=doc,
-        transitions=[
-            {
-                "type": t.type,
-                "label": t.label,
-                "duration_s": rules.catalog.duration_for(t.type, rules.fmt),
-            }
-            for t in rules.catalog.transitions
-        ],
+        transitions=transition_options(rules),
         scene_band_s=[rules.min_s, rules.max_s],
+        transition_pack=rules.pack,
+        channel_motion_style=channel_motion_style,
     ).model_dump(mode="json")
 
 
@@ -837,11 +1194,12 @@ def rules_for(ctx: StageContext) -> Rules:
     fmt = ctx.project.format
     min_s, max_s = gates.scene_band(fmt)
     images = ctx.channel.images
+    catalog = transition_catalog()
     return Rules(
         min_s=min_s,
         max_s=max_s,
         fmt=fmt,
-        catalog=transition_catalog(),
+        catalog=catalog,
         style_guide=" ".join((images.style_guide or DEFAULT_STYLE_GUIDE).split()),
         negative_rules=images.negative_rules or "",
         popup_style=images.popup_style or "Rounded box, brand colour, bold sans-serif",
@@ -849,7 +1207,67 @@ def rules_for(ctx: StageContext) -> Rules:
             gates.params("storyboard.popup_words").get("max_words", MAX_POPUP_WORDS)
         ),
         min_text_share=float(gates.params("storyboard.popup_share").get("min_share", 0.35)),
+        pack=catalog.pack_or_default(getattr(images, "transition_pack", None)),
     )
+
+
+def channel_motion_style(ctx: StageContext) -> str | None:
+    return getattr(ctx.channel.images, "motion_style", None)
+
+
+def reviewer_picks(doc: StoryboardDoc, previous: StoryboardDoc | None) -> frozenset[str]:
+    """First sentence ids of the scenes whose transition differs from the saved storyboard:
+    the reviewer picked those by hand, so the fix-ups change their neighbours instead."""
+    if previous is None:
+        return frozenset()
+    before = {s.sentence_ids[0]: s.transition_out.type for s in previous.scenes if s.sentence_ids}
+    return frozenset(
+        scene.sentence_ids[0] for scene in doc.scenes
+        if scene.sentence_ids and scene.sentence_ids[0] in before
+        and before[scene.sentence_ids[0]] != scene.transition_out.type
+    )
+
+
+# The prompt ------------------------------------------------------------------------------------
+
+
+def transition_prompt_lines(rules: Rules) -> list[str]:
+    """``id | name | energy | default length | feel`` for every transition of the pack."""
+    catalog = rules.catalog
+    lines: list[str] = []
+    for t in catalog.for_pack(rules.pack):
+        suits = ", ".join(BEAT_LABELS[b] for b in t.beats if b in BEAT_LABELS)
+        extra = f" Suits {suits}." if suits else ""
+        if t.min_gap_s >= 60:
+            extra += " At most once a minute."
+        elif t.min_gap_s > 0:
+            extra += f" At most once every {t.min_gap_s:g} s."
+        lines.append(
+            f"{t.type} | {t.label} | {ENERGY_LABELS.get(t.energy, t.energy).lower()} | "
+            f"{catalog.duration_for(t.type, rules.fmt, rules.pack):g} s | {t.feel}{extra}"
+        )
+    return lines
+
+
+def pack_description(rules: Rules) -> str:
+    info = rules.catalog.pack_info(rules.pack)
+    label = PACK_LABELS.get(rules.pack, rules.pack)
+    return f"{label}. {info.description}" if info and info.description else label
+
+
+def sentence_lines(sentences: list[SentenceInfo], names: dict[str, str]) -> list[str]:
+    """The sentences for the prompt, with a header line where each script section starts."""
+    lines: list[str] = []
+    current: str | None = None
+    number = 0
+    for sentence in sentences:
+        if sentence.section and sentence.section != current:
+            number += 1
+            current = sentence.section
+            name = names.get(sentence.section, "").strip()
+            lines.append(f"[Section {number}{': ' + name if name else ''}]")
+        lines.append(f"{sentence.id} ({sentence.est_s:g} s): {sentence.text}")
+    return lines
 
 
 def aspect_for(ctx: StageContext) -> str:
@@ -894,7 +1312,7 @@ class StoryboardStage:
         project = ctx.project
         stage_dir = ctx.stage_dir(StageName.storyboard)
         await ctx.report("Reading the script", 5)
-        _script, sentences, wpm = load_sentences(ctx)
+        script, sentences, wpm = load_sentences(ctx)
         rules = rules_for(ctx)
         aspect = aspect_for(ctx)
         prompt = load_prompt(TASK)
@@ -909,17 +1327,23 @@ class StoryboardStage:
             "style_guide": rules.style_guide,
             "negative_rules": rules.negative_rules or "(none beyond the defaults)",
             "popup_style": rules.popup_style,
-            "transition_types": ", ".join(rules.catalog.types),
+            "transition_pack": pack_description(rules),
+            "transition_options": transition_prompt_lines(rules),
+            "transition_closer": (
+                f"{rules.catalog.closer_for(rules.pack)} "
+                f"({transition_label(rules.catalog, rules.catalog.closer_for(rules.pack))})"
+            ),
+            "transition_types": ", ".join(t.type for t in rules.catalog.for_pack(rules.pack)),
             "motion_presets": ", ".join(MOTION_PRESETS),
             "popup_positions": ", ".join(POPUP_POSITIONS),
-            "sentences": [f"{s.id} ({s.est_s:g} s): {s.text}" for s in sentences],
+            "sentences": sentence_lines(sentences, section_names(script)),
             "locked_scenes": locked_lines or ["(none)"],
             "notes": notes or ["(none)"],
         }
         mock_variables = {
             **variables,
             "sentences": [{"id": s.id, "text": s.text, "est_s": s.est_s} for s in sentences],
-            "transition_types": rules.catalog.types,
+            "transition_types": [t.type for t in rules.catalog.for_pack(rules.pack)],
             "motion_presets": list(MOTION_PRESETS),
             "popup_positions": list(POPUP_POSITIONS),
         }
@@ -938,6 +1362,8 @@ class StoryboardStage:
             style_guide=rules.style_guide,
             negative_rules=rules.negative_rules,
             popup_style=rules.popup_style,
+            transition_pack=rules.pack,  # type: ignore[arg-type]
+            motion_style=previous.motion_style if previous else None,
             generated_at=datetime.now(UTC),
             model=usage.model,
             speaking_rate_wpm=wpm,
@@ -958,7 +1384,7 @@ class StoryboardStage:
             f"{doc.variety.popup_share:.0%} with text, "
             f"{doc.variety.distinct_transitions} transitions.",
             cost_usd=round(usage.cost_usd, 6),
-            needs_review_payload=review_payload(doc, rules),
+            needs_review_payload=review_payload(doc, rules, channel_motion_style(ctx)),
             gate_results=doc.gate_results,
         )
 
@@ -985,6 +1411,15 @@ class StoryboardStage:
         rules.style_guide = doc.style_guide
         if not doc.scenes:
             raise StageError("The storyboard must keep at least one scene.")
+        # The reviewer may pick any transition (the picker shows every pack); the ones they
+        # changed by hand win over their unchanged neighbours.
+        try:
+            saved = read_storyboard(stage_dir)
+        except StageError:
+            saved = None
+        rules.enforce_pack = False
+        rules.pinned_transitions = reviewer_picks(doc, saved)
+        doc.transition_pack = rules.pack  # type: ignore[assignment]
         fix_up(doc, sentences, rules)
         results = gates.evaluate("storyboard", gate_context(doc, rules.catalog))
         doc.gate_results = gates.to_dicts(results)
@@ -993,7 +1428,7 @@ class StoryboardStage:
             outputs=[path],
             summary=f"Storyboard edited by the reviewer: {len(doc.scenes)} scenes, "
             f"{doc.total_s:g} s estimated.",
-            needs_review_payload=review_payload(doc, rules),
+            needs_review_payload=review_payload(doc, rules, channel_motion_style(ctx)),
             gate_results=doc.gate_results,
         )
 
@@ -1004,8 +1439,10 @@ def load_review_payload(folder: Path, fmt: str = "long") -> dict[str, Any]:
     if doc is None:
         return {}
     min_s, max_s = gates.scene_band(doc.format)
+    catalog = transition_catalog()
     rules = Rules(
-        min_s=min_s, max_s=max_s, fmt=doc.format, catalog=transition_catalog(),
+        min_s=min_s, max_s=max_s, fmt=doc.format, catalog=catalog,
         style_guide=doc.style_guide, negative_rules=doc.negative_rules, popup_style=doc.popup_style,
+        pack=catalog.pack_or_default(doc.transition_pack),
     )
     return review_payload(doc, rules)

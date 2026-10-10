@@ -16,6 +16,11 @@ end. Every change is written to ``job.json`` first and then broadcast as ``proje
 
 Runs happen in one asyncio task per project, at most ``max_parallel`` at a time; the tasks
 are tracked in :attr:`PipelineEngine.tasks` (reachable as ``app.state.engine.tasks``).
+
+Who acts: ``run``, ``approve``, ``redo`` and ``skip`` take the signed-in person's username as
+``user`` (the API passes it; ``by`` is the name written into the history). The engine keeps the
+last one per project and hands it to the stages as ``StageContext.user``, so the export stage
+can say who exported a video.
 """
 
 from __future__ import annotations
@@ -162,6 +167,8 @@ class PipelineEngine:
         self._contexts: dict[str, StageContext] = {}
         """The context of the stage running for each project, so archive/shutdown can set
         its cancel flag and stop work that runs in a worker thread."""
+        self._actors: dict[str, str] = {}
+        """The username of the last person who acted on each project (``StageContext.user``)."""
         self._semaphore: asyncio.Semaphore | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -275,13 +282,18 @@ class PipelineEngine:
 
     # Run / resume -------------------------------------------------------------------------
 
-    async def run(self, project_id: str) -> tuple[Project, bool]:
+    def _note_actor(self, project_id: str, user: str) -> None:
+        if user and user.strip():
+            self._actors[project_id] = user.strip()
+
+    async def run(self, project_id: str, *, user: str = "") -> tuple[Project, bool]:
         """Resume a project. Returns ``(project, started)``.
 
         ``started`` is False when the project is already running, is waiting for a review,
-        or is complete.
+        or is complete. ``user`` is the signed-in person who pressed Run (or created it).
         """
         self._ensure_loop()
+        self._note_actor(project_id, user)
         if project_id in self.tasks and not self.tasks[project_id].done():
             return self._load(project_id), False
         project = self._load(project_id)
@@ -492,6 +504,7 @@ class PipelineEngine:
             notes=list(project.stages[stage].notes),
             edits=dict(project.stages[stage].pending_edits),
             progress=progress,
+            user=self._actors.get(project_id, ""),
         )
 
     def _rename_folder(self, project: Project) -> None:
@@ -559,8 +572,11 @@ class PipelineEngine:
         by: str,
         notes: str | None = None,
         edits: dict[str, Any] | None = None,
+        *,
+        user: str = "",
     ) -> Project:
         project = self._load_for_change(project_id)
+        self._note_actor(project_id, user or by)
         state = project.stages[stage]
         if state.status not in APPROVABLE:
             raise InvalidTransition(
@@ -609,6 +625,8 @@ class PipelineEngine:
         by: str,
         notes: str | None = None,
         edits: dict[str, Any] | None = None,
+        *,
+        user: str = "",
     ) -> Project:
         """Run the stage again with the notes added to the prompt.
 
@@ -616,6 +634,7 @@ class PipelineEngine:
         script stage keeps the paragraphs in ``locked_paragraph_ids`` word for word.
         """
         project = self._load_for_change(project_id)
+        self._note_actor(project_id, user or by)
         state = project.stages[stage]
         if state.status not in REDOABLE:
             raise InvalidTransition(
@@ -664,9 +683,16 @@ class PipelineEngine:
         return project
 
     async def skip(
-        self, project_id: str, stage: StageName, by: str, notes: str | None = None
+        self,
+        project_id: str,
+        stage: StageName,
+        by: str,
+        notes: str | None = None,
+        *,
+        user: str = "",
     ) -> Project:
         project = self._load_for_change(project_id)
+        self._note_actor(project_id, user or by)
         state = project.stages[stage]
         if state.status not in SKIPPABLE:
             raise InvalidTransition(
@@ -721,6 +747,7 @@ class PipelineEngine:
                 "finishes, then archive it."
             )
         self._contexts.pop(project_id, None)
+        self._actors.pop(project_id, None)
         project = self.store.get(project_id)
         destination = self.store.archive(project_id)
         try:

@@ -1,5 +1,6 @@
 /** Small pure helpers for the Edit review panel. */
 import type { BadgeTone } from "../ui/Badge";
+import { findTransition, type TransitionCatalogue } from "../../types/storyboard";
 import type { EditSceneView, RenderStatus } from "../../types/timeline";
 
 /** "0:00", "1:05" or "1:02:03" */
@@ -68,9 +69,16 @@ const TRANSITION_WORDS: Record<string, string> = {
   diagbr: "Diagonal (bottom right)",
 };
 
-export function transitionLabel(type: string): string {
+/**
+ * The name editors see for a transition: the catalogue's label for a v2 id (or an old name
+ * that maps to one), the old xfade words otherwise, else the id made readable.
+ */
+export function transitionLabel(type: string, catalogue?: TransitionCatalogue | null): string {
+  const entry = findTransition(catalogue ?? null, type);
+  if (entry) return entry.label;
   if (TRANSITION_WORDS[type]) return TRANSITION_WORDS[type]!;
   const match = /^(wipe|slide|smooth)(left|right|up|down)$/.exec(type);
   if (match) return `${match[1] === "smooth" ? "Smooth wipe" : match[1]![0]!.toUpperCase() + match[1]!.slice(1)} ${match[2]}`;
-  return type;
+  const words = type.replace(/[_-]+/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : type;
 }

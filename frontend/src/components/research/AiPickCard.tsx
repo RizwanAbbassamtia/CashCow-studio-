@@ -2,8 +2,8 @@ import { ExternalLink, Play, Sparkles } from "lucide-react";
 
 import type { ProjectFormat } from "../../types/project";
 import type { Candidate } from "../../types/research";
+import { RunButton } from "../auth/Gated";
 import { Badge } from "../ui/Badge";
-import { Button } from "../ui/Button";
 import { formatAge, formatDuration, formatMultiple, formatViews, formatWhole } from "./numbers";
 import { OutlierBadge } from "./OutlierBadge";
 
@@ -48,9 +48,9 @@ export function AiPickCard({ pick, format, onStart, starting, disabled }: AiPick
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <Button variant="primary" icon={<Play />} onClick={onStart} loading={starting} disabled={disabled}>
+          <RunButton variant="primary" icon={<Play />} onClick={onStart} loading={starting} disabled={disabled}>
             Start production with the AI pick
-          </Button>
+          </RunButton>
           <span className="text-[11px] text-ink-faint">Or pick another row below</span>
         </div>
       </div>

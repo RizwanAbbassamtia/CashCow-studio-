@@ -6,10 +6,14 @@
 import {
   MIN_TEXT_SHARE,
   POPUP_MAX_WORDS,
+  findTransition,
+  resolveTransitionId,
   type SceneLockField,
   type StoryboardDoc,
   type StoryboardScene,
   type StoryboardVariety,
+  type TransitionCatalogue,
+  type TransitionEnergy,
   type TransitionOption,
 } from "../../types";
 
@@ -229,6 +233,25 @@ export interface SceneIssue {
   message: string;
 }
 
+/** The v2 id of a scene's transition (old xfade names resolved), or the name as written. */
+export function transitionIdOf(scene: StoryboardScene, catalogue: TransitionCatalogue | null): string {
+  return resolveTransitionId(catalogue, scene.transition_out.type) ?? scene.transition_out.type;
+}
+
+function energyOf(type: string, catalogue: TransitionCatalogue | null, transitions: TransitionOption[]): TransitionEnergy | null {
+  return findTransition(catalogue, type)?.energy ?? transitions.find((option) => option.type === type)?.energy ?? null;
+}
+
+/** `{transition id: uses}`, most used first (old names counted as their v2 id). */
+export function transitionHistogram(scenes: StoryboardScene[], catalogue: TransitionCatalogue | null): Record<string, number> {
+  const counts = new Map<string, number>();
+  for (const scene of scenes) {
+    const id = transitionIdOf(scene, catalogue);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return Object.fromEntries([...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])));
+}
+
 /**
  * The same rules the backend fixes up after the LLM call, run locally on the draft so the
  * board can warn while the reviewer edits.
@@ -238,11 +261,15 @@ export function checkVariety(
   band: SceneBand,
   transitions: TransitionOption[],
   styleGuide = "",
+  catalogue: TransitionCatalogue | null = null,
 ): { variety: StoryboardVariety; issues: SceneIssue[] } {
   const [minS, maxS] = band;
   const issues: SceneIssue[] = [];
   const warnings: string[] = [];
   const allowed = new Set(transitions.map((option) => option.type));
+  const ids = scenes.map((scene) => transitionIdOf(scene, catalogue));
+  const known = (index: number) =>
+    allowed.size === 0 || allowed.has(ids[index]!) || allowed.has(scenes[index]!.transition_out.type) || findTransition(catalogue, scenes[index]!.transition_out.type) !== null;
 
   for (let i = 0; i < scenes.length; i += 1) {
     const scene = scenes[i]!;
@@ -258,11 +285,13 @@ export function checkVariety(
     if (previous && previous.motion.preset === scene.motion.preset) {
       issues.push({ index: i, message: `Same motion as scene ${n - 1}. Two neighbours with the same move look like a slideshow.` });
     }
-    if (previous && previous.transition_out.type === scene.transition_out.type) {
+    if (previous && ids[i - 1] === ids[i]) {
       issues.push({ index: i, message: `Same transition as scene ${n - 1}. Vary it.` });
+    } else if (previous && energyOf(ids[i - 1]!, catalogue, transitions) === "high" && energyOf(ids[i]!, catalogue, transitions) === "high") {
+      issues.push({ index: i, message: `High-energy transition right after another one (scene ${n - 1}). Calm one of them down.` });
     }
-    if (allowed.size > 0 && !allowed.has(scene.transition_out.type)) {
-      issues.push({ index: i, message: `"${scene.transition_out.type}" is not in the transitions list; the app will swap it for the default.` });
+    if (!known(i)) {
+      issues.push({ index: i, message: `"${scene.transition_out.type}" is not a known transition; the app will swap it when you approve.` });
     }
     const popup = scene.popup.text?.trim() ?? "";
     if (popup) {
@@ -282,14 +311,19 @@ export function checkVariety(
   const total = scenes.reduce((sum, scene) => sum + scene.est_duration_s, 0);
   const withText = scenes.filter(hasText).length;
   const popupShare = scenes.length > 0 ? withText / scenes.length : 0;
-  const distinctTransitions = new Set(scenes.map((scene) => scene.transition_out.type)).size;
+  const histogram = transitionHistogram(scenes, catalogue);
+  const distinctTransitions = Object.keys(histogram).length;
   const distinctMotions = new Set(scenes.map((scene) => scene.motion.preset)).size;
+  // The policy gate asks for four different transitions once a video has eight scenes.
+  const wantedTransitions = scenes.length >= 8 ? 4 : 3;
 
   if (scenes.length > 0 && popupShare < MIN_TEXT_SHARE) {
     warnings.push(`Only ${Math.round(popupShare * 100)}% of scenes have a popup or on-screen text; at least ${Math.round(MIN_TEXT_SHARE * 100)}% should. Static images with no text read as a slideshow.`);
   }
-  if (scenes.length >= 4 && distinctTransitions < Math.min(3, scenes.length)) {
-    warnings.push(`Only ${distinctTransitions} different transition${distinctTransitions === 1 ? "" : "s"} across ${scenes.length} scenes. Use at least three.`);
+  if (scenes.length >= 4 && distinctTransitions < Math.min(wantedTransitions, scenes.length)) {
+    warnings.push(
+      `Only ${distinctTransitions} different transition${distinctTransitions === 1 ? "" : "s"} across ${scenes.length} scenes. Use at least ${wantedTransitions === 4 ? "four" : "three"}.`,
+    );
   }
   if (scenes.length >= 4 && distinctMotions < 3) {
     warnings.push(`Only ${distinctMotions} different motion preset${distinctMotions === 1 ? "" : "s"}; mix zooms, pans and holds.`);
@@ -309,6 +343,7 @@ export function checkVariety(
       distinct_transitions: distinctTransitions,
       distinct_motions: distinctMotions,
       warnings,
+      transition_histogram: histogram,
     },
     issues,
   };

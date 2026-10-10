@@ -34,16 +34,20 @@ export interface EventsSnapshot {
 
 type EventListener = (event: ProjectEvent) => void;
 
-const DEV_BACKEND_WS = "ws://127.0.0.1:8765/api/ws";
+const DEV_BACKEND_PORT = 8765;
 const MIN_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 30_000;
 const IDLE_CLOSE_MS = 5_000;
 const INVALIDATE_DEBOUNCE_MS = 150;
 
-/** Same origin in production (the backend serves the app); the backend port in `npm run dev`. */
+/**
+ * Same origin in production (the backend serves the app); the backend port in `npm run dev`.
+ * The dev address keeps the page's host name (127.0.0.1 or localhost): the sign-in cookie
+ * belongs to that host, and the WebSocket is refused without it.
+ */
 export function wsUrl(): string {
-  if (import.meta.env.DEV) return DEV_BACKEND_WS;
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  if (import.meta.env.DEV) return `${protocol}//${window.location.hostname}:${DEV_BACKEND_PORT}/api/ws`;
   return `${protocol}//${window.location.host}/api/ws`;
 }
 

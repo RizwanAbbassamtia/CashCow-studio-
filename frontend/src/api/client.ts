@@ -4,6 +4,12 @@
  * This is the only file that deals with untyped JSON: everything that leaves it is typed.
  * Errors are turned into ApiError with a plain-English message and, for 422 responses,
  * a list of field errors mapped from Pydantic `loc` paths to form paths ("channel.name").
+ *
+ * A 401 (no session, or the session ended) becomes an UnauthorizedError and is reported to
+ * the `onUnauthorized` listeners; the app shell listens, asks /api/auth/me again and, when
+ * nobody is signed in any more, returns to the sign-in page with a "signed out" notice. The
+ * sign-in calls opt out (`{ reportUnauthorized: false }`), because there a 401 means "wrong
+ * password", not "signed out".
  */
 
 export interface FieldError {
@@ -27,6 +33,47 @@ export class ApiError extends Error {
 
   get isNetworkError(): boolean {
     return this.status === 0;
+  }
+}
+
+/** A 401: nobody is signed in, or the session ended (12 hours, 30 days, or an admin change). */
+export class UnauthorizedError extends ApiError {
+  constructor(message: string, detail: unknown = null) {
+    super(401, message, [], detail);
+    this.name = "UnauthorizedError";
+  }
+}
+
+export function isUnauthorized(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 401;
+}
+
+export interface RequestOptions {
+  /**
+   * Tell the `onUnauthorized` listeners about a 401 (default true). The sign-in, first-run,
+   * session-check and change-password calls pass false and handle the 401 themselves.
+   */
+  reportUnauthorized?: boolean;
+}
+
+type UnauthorizedListener = (error: UnauthorizedError) => void;
+const unauthorizedListeners = new Set<UnauthorizedListener>();
+
+/** Called for every reported 401; returns the function that stops listening. */
+export function onUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+function reportUnauthorized(error: UnauthorizedError): void {
+  for (const listener of unauthorizedListeners) {
+    try {
+      listener(error);
+    } catch {
+      /* one listener must not break the others or the caller's error handling */
+    }
   }
 }
 
@@ -84,6 +131,8 @@ export function errorFromBody(status: number, body: unknown, fallback: string): 
 
 function statusFallback(status: number): string {
   switch (status) {
+    case 401:
+      return "Please sign in.";
     case 404:
       return "Not found.";
     case 409:
@@ -107,7 +156,7 @@ async function parseBody(response: Response): Promise<unknown> {
   }
 }
 
-async function run<T>(path: string, init: RequestInit): Promise<T> {
+async function run<T>(path: string, init: RequestInit, options: RequestOptions = {}): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, { credentials: "same-origin", ...init });
@@ -116,7 +165,13 @@ async function run<T>(path: string, init: RequestInit): Promise<T> {
   }
   if (!response.ok) {
     const body = await parseBody(response);
-    throw errorFromBody(response.status, body, statusFallback(response.status));
+    const error = errorFromBody(response.status, body, statusFallback(response.status));
+    if (response.status === 401) {
+      const unauthorized = new UnauthorizedError(error.message, error.detail);
+      if (options.reportUnauthorized !== false) reportUnauthorized(unauthorized);
+      throw unauthorized;
+    }
+    throw error;
   }
   if (response.status === 204) {
     return undefined as T;
@@ -128,21 +183,21 @@ async function run<T>(path: string, init: RequestInit): Promise<T> {
 const jsonHeaders = { "Content-Type": "application/json", Accept: "application/json" };
 
 export const api = {
-  get<T>(path: string): Promise<T> {
-    return run<T>(path, { method: "GET", headers: { Accept: "application/json" } });
+  get<T>(path: string, options?: RequestOptions): Promise<T> {
+    return run<T>(path, { method: "GET", headers: { Accept: "application/json" } }, options);
   },
-  post<T>(path: string, body: unknown): Promise<T> {
-    return run<T>(path, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) });
+  post<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
+    return run<T>(path, { method: "POST", headers: jsonHeaders, body: JSON.stringify(body) }, options);
   },
-  put<T>(path: string, body: unknown): Promise<T> {
-    return run<T>(path, { method: "PUT", headers: jsonHeaders, body: JSON.stringify(body) });
+  put<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
+    return run<T>(path, { method: "PUT", headers: jsonHeaders, body: JSON.stringify(body) }, options);
   },
-  delete<T = void>(path: string): Promise<T> {
-    return run<T>(path, { method: "DELETE", headers: { Accept: "application/json" } });
+  delete<T = void>(path: string, options?: RequestOptions): Promise<T> {
+    return run<T>(path, { method: "DELETE", headers: { Accept: "application/json" } }, options);
   },
   /** multipart/form-data upload; the browser sets the boundary header itself */
-  upload<T>(path: string, form: FormData): Promise<T> {
-    return run<T>(path, { method: "POST", headers: { Accept: "application/json" }, body: form });
+  upload<T>(path: string, form: FormData, options?: RequestOptions): Promise<T> {
+    return run<T>(path, { method: "POST", headers: { Accept: "application/json" }, body: form }, options);
   },
 };
 

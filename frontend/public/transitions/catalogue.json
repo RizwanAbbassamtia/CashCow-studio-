@@ -1,0 +1,775 @@
+{
+  "version": 2,
+  "default": "film_dissolve",
+  "default_pack": "cinematic",
+  "last_scene": "dip_black",
+  "shorts_duration_factor": 0.6,
+  "packs": {
+    "cinematic": {
+      "label": "Cinematic",
+      "description": "Soft, filmic cuts. Dissolves, gentle wipes, zooms and the odd warm light leak. Suits stories, history and calm explainers.",
+      "duration_s": [
+        0.6,
+        0.8
+      ],
+      "closer": "dip_black"
+    },
+    "clean": {
+      "label": "Clean",
+      "description": "Crisp and modern. Pushes and soft wipes, nothing flashy. Suits tutorials, news and business topics.",
+      "duration_s": [
+        0.5,
+        0.5
+      ],
+      "closer": "dip_black"
+    },
+    "dynamic": {
+      "label": "Dynamic",
+      "description": "Fast and punchy. Whip pans, spins, cube turns and a little glitch. Suits lists, facts and Shorts.",
+      "duration_s": [
+        0.3,
+        0.45
+      ],
+      "closer": "dip_black"
+    }
+  },
+  "legacy": {
+    "fade": "film_dissolve",
+    "dissolve": "film_dissolve",
+    "fadegrays": "film_dissolve",
+    "fadeblack": "dip_black",
+    "fadewhite": "dip_white",
+    "wipeleft": "luma_wipe_left",
+    "wiperight": "luma_wipe_right",
+    "wipeup": "luma_wipe_up",
+    "wipedown": "luma_wipe_down",
+    "smoothleft": "luma_wipe_left",
+    "smoothright": "luma_wipe_right",
+    "smoothup": "luma_wipe_up",
+    "smoothdown": "luma_wipe_down",
+    "diagtl": "luma_wipe_diag",
+    "diagtr": "luma_wipe_diag",
+    "diagbl": "luma_wipe_diag",
+    "diagbr": "luma_wipe_diag",
+    "slideleft": "push_left",
+    "slideright": "push_right",
+    "slideup": "push_up",
+    "slidedown": "push_down",
+    "zoomin": "zoom_through",
+    "circleopen": "film_dissolve",
+    "circleclose": "film_dissolve",
+    "radial": "film_dissolve",
+    "pixelize": "film_dissolve",
+    "hlslice": "film_dissolve",
+    "vuslice": "film_dissolve",
+    "distance": "film_dissolve"
+  },
+  "transitions": [
+    {
+      "id": "film_dissolve",
+      "label": "Film dissolve",
+      "pack": [
+        "cinematic",
+        "clean",
+        "dynamic"
+      ],
+      "energy": "calm",
+      "duration_s": 0.7,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "luma_lift": 0.03
+      },
+      "preview": "transitions/film_dissolve.webp",
+      "feel": "A soft, filmic crossfade with a gentle lift of light in the middle.",
+      "beats": [
+        "calm"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/film_dissolve.webp",
+      "poster_url": "/transitions/film_dissolve.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "dip_black",
+      "label": "Dip to black",
+      "pack": [
+        "cinematic",
+        "clean",
+        "dynamic"
+      ],
+      "energy": "calm",
+      "duration_s": 0.8,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "color": [
+          0,
+          0,
+          0
+        ]
+      },
+      "preview": "transitions/dip_black.webp",
+      "feel": "The picture fades to black, then the next one fades up. Feels like the end of a chapter.",
+      "beats": [
+        "section"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/dip_black.webp",
+      "poster_url": "/transitions/dip_black.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "dip_white",
+      "label": "Dip to white",
+      "pack": [
+        "cinematic",
+        "clean",
+        "dynamic"
+      ],
+      "energy": "calm",
+      "duration_s": 0.8,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "color": [
+          255,
+          255,
+          255
+        ]
+      },
+      "preview": "transitions/dip_white.webp",
+      "feel": "A fade through bright white. Feels like a memory, a flashback or a fresh start.",
+      "beats": [
+        "section",
+        "reveal"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/dip_white.webp",
+      "poster_url": "/transitions/dip_white.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "blur_dissolve",
+      "label": "Blur dissolve",
+      "pack": [
+        "cinematic",
+        "clean"
+      ],
+      "energy": "calm",
+      "duration_s": 0.7,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "max_blur_px": 24
+      },
+      "preview": "transitions/blur_dissolve.webp",
+      "feel": "The picture melts into a soft blur while the next one comes into focus.",
+      "beats": [
+        "calm"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/blur_dissolve.webp",
+      "poster_url": "/transitions/blur_dissolve.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "luma_wipe_left",
+      "label": "Wipe left",
+      "pack": [
+        "cinematic",
+        "clean"
+      ],
+      "energy": "medium",
+      "duration_s": 0.6,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "left",
+        "feather": 0.12
+      },
+      "preview": "transitions/luma_wipe_left.webp",
+      "feel": "A soft-edged wipe sweeps across to the left and uncovers the next picture.",
+      "beats": [
+        "calm",
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/luma_wipe_left.webp",
+      "poster_url": "/transitions/luma_wipe_left.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "luma_wipe_right",
+      "label": "Wipe right",
+      "pack": [
+        "cinematic",
+        "clean"
+      ],
+      "energy": "medium",
+      "duration_s": 0.6,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "right",
+        "feather": 0.12
+      },
+      "preview": "transitions/luma_wipe_right.webp",
+      "feel": "A soft-edged wipe sweeps across to the right and uncovers the next picture.",
+      "beats": [
+        "calm",
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/luma_wipe_right.webp",
+      "poster_url": "/transitions/luma_wipe_right.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "luma_wipe_up",
+      "label": "Wipe up",
+      "pack": [
+        "cinematic",
+        "clean"
+      ],
+      "energy": "medium",
+      "duration_s": 0.6,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "up",
+        "feather": 0.12
+      },
+      "preview": "transitions/luma_wipe_up.webp",
+      "feel": "A soft-edged wipe rises up the frame and uncovers the next picture.",
+      "beats": [
+        "calm",
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/luma_wipe_up.webp",
+      "poster_url": "/transitions/luma_wipe_up.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "luma_wipe_down",
+      "label": "Wipe down",
+      "pack": [
+        "cinematic",
+        "clean"
+      ],
+      "energy": "medium",
+      "duration_s": 0.6,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "down",
+        "feather": 0.12
+      },
+      "preview": "transitions/luma_wipe_down.webp",
+      "feel": "A soft-edged wipe falls down the frame and uncovers the next picture.",
+      "beats": [
+        "calm",
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/luma_wipe_down.webp",
+      "poster_url": "/transitions/luma_wipe_down.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "luma_wipe_diag",
+      "label": "Diagonal wipe",
+      "pack": [
+        "cinematic",
+        "clean"
+      ],
+      "energy": "medium",
+      "duration_s": 0.6,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "diag",
+        "feather": 0.12
+      },
+      "preview": "transitions/luma_wipe_diag.webp",
+      "feel": "A soft-edged wipe crosses the frame corner to corner.",
+      "beats": [
+        "calm",
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/luma_wipe_diag.webp",
+      "poster_url": "/transitions/luma_wipe_diag.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "light_leak_warm",
+      "label": "Warm light leak",
+      "pack": [
+        "cinematic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.8,
+      "easing": "linear",
+      "params": {
+        "peak_t": 0.5,
+        "color": [
+          255,
+          176,
+          96
+        ],
+        "strength": 0.85
+      },
+      "preview": "transitions/light_leak_warm.webp",
+      "feel": "A warm glow of light washes over the cut, like old film. Lovely for a reveal; use sparingly.",
+      "beats": [
+        "reveal"
+      ],
+      "min_gap_s": 60.0,
+      "preview_url": "/transitions/light_leak_warm.webp",
+      "poster_url": "/transitions/light_leak_warm.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "film_burn",
+      "label": "Film burn",
+      "pack": [
+        "cinematic"
+      ],
+      "energy": "high",
+      "duration_s": 0.8,
+      "easing": "linear",
+      "params": {
+        "color": [
+          255,
+          240,
+          220
+        ],
+        "edge_color": [
+          255,
+          140,
+          40
+        ]
+      },
+      "preview": "transitions/film_burn.webp",
+      "feel": "The frame burns away to warm white with a glowing edge. For a big change of section.",
+      "beats": [
+        "section"
+      ],
+      "min_gap_s": 60.0,
+      "preview_url": "/transitions/film_burn.webp",
+      "poster_url": "/transitions/film_burn.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "morph_blend",
+      "label": "Morph blend",
+      "pack": [
+        "cinematic"
+      ],
+      "energy": "calm",
+      "duration_s": 0.8,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "max_displacement_px": 18
+      },
+      "preview": "transitions/morph_blend.webp",
+      "feel": "The shapes of one picture flow softly into the next, almost like a morph.",
+      "beats": [
+        "calm"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/morph_blend.webp",
+      "poster_url": "/transitions/morph_blend.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "zoom_through",
+      "label": "Zoom through",
+      "pack": [
+        "cinematic",
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.7,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "a_scale_end": 1.25,
+        "b_scale_start": 1.15,
+        "crossfade_window": 0.4,
+        "radial_blur": true
+      },
+      "preview": "transitions/zoom_through.webp",
+      "feel": "The camera rushes into the picture and lands on the next one. Made for reveals.",
+      "beats": [
+        "reveal"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/zoom_through.webp",
+      "poster_url": "/transitions/zoom_through.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "crosswarp",
+      "label": "Cross warp",
+      "pack": [
+        "cinematic",
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.7,
+      "easing": "ease_in_out_cubic",
+      "params": {},
+      "preview": "transitions/crosswarp.webp",
+      "feel": "Both pictures stretch and warp into each other. A stylish, dreamy change.",
+      "beats": [
+        "reveal",
+        "calm"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/crosswarp.webp",
+      "poster_url": "/transitions/crosswarp.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "push_left",
+      "label": "Push left",
+      "pack": [
+        "clean",
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.5,
+      "easing": "ease_out_quart",
+      "params": {
+        "direction": "left",
+        "overshoot": 0.02
+      },
+      "preview": "transitions/push_left.webp",
+      "feel": "The next picture pushes the old one off to the left, like turning a page.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/push_left.webp",
+      "poster_url": "/transitions/push_left.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "push_right",
+      "label": "Push right",
+      "pack": [
+        "clean",
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.5,
+      "easing": "ease_out_quart",
+      "params": {
+        "direction": "right",
+        "overshoot": 0.02
+      },
+      "preview": "transitions/push_right.webp",
+      "feel": "The next picture pushes the old one off to the right.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/push_right.webp",
+      "poster_url": "/transitions/push_right.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "push_up",
+      "label": "Push up",
+      "pack": [
+        "clean",
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.5,
+      "easing": "ease_out_quart",
+      "params": {
+        "direction": "up",
+        "overshoot": 0.02
+      },
+      "preview": "transitions/push_up.webp",
+      "feel": "The next picture slides in from below and pushes the old one up.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/push_up.webp",
+      "poster_url": "/transitions/push_up.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "push_down",
+      "label": "Push down",
+      "pack": [
+        "clean",
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.5,
+      "easing": "ease_out_quart",
+      "params": {
+        "direction": "down",
+        "overshoot": 0.02
+      },
+      "preview": "transitions/push_down.webp",
+      "feel": "The next picture slides in from above and pushes the old one down.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/push_down.webp",
+      "poster_url": "/transitions/push_down.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "whip_left",
+      "label": "Whip left",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "high",
+      "duration_s": 0.35,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "left",
+        "motion_blur": 1.0
+      },
+      "preview": "transitions/whip_left.webp",
+      "feel": "A fast camera whip with motion blur. An energetic jump to the next idea.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/whip_left.webp",
+      "poster_url": "/transitions/whip_left.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "whip_right",
+      "label": "Whip right",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "high",
+      "duration_s": 0.35,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "right",
+        "motion_blur": 1.0
+      },
+      "preview": "transitions/whip_right.webp",
+      "feel": "A fast camera whip to the right with motion blur.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/whip_right.webp",
+      "poster_url": "/transitions/whip_right.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "whip_up",
+      "label": "Whip up",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "high",
+      "duration_s": 0.35,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "up",
+        "motion_blur": 1.0
+      },
+      "preview": "transitions/whip_up.webp",
+      "feel": "A fast upward whip with motion blur.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/whip_up.webp",
+      "poster_url": "/transitions/whip_up.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "whip_down",
+      "label": "Whip down",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "high",
+      "duration_s": 0.35,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "down",
+        "motion_blur": 1.0
+      },
+      "preview": "transitions/whip_down.webp",
+      "feel": "A fast downward whip with motion blur.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/whip_down.webp",
+      "poster_url": "/transitions/whip_down.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "directional_warp",
+      "label": "Directional warp",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.45,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": [
+          -1.0,
+          1.0
+        ],
+        "smoothness": 0.5
+      },
+      "preview": "transitions/directional_warp.webp",
+      "feel": "The old picture bends away on a diagonal with a smooth edge as the new one arrives.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/directional_warp.webp",
+      "poster_url": "/transitions/directional_warp.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "glitch_subtle",
+      "label": "Subtle glitch",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "high",
+      "duration_s": 0.3,
+      "easing": "snap",
+      "params": {
+        "glitch_frames": [
+          6,
+          8
+        ],
+        "max_shift_px": 6,
+        "slices": [
+          3,
+          5
+        ]
+      },
+      "preview": "transitions/glitch_subtle.webp",
+      "feel": "A few frames of colour split and jittering slices, then a clean cut. Techy and punchy.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/glitch_subtle.webp",
+      "poster_url": "/transitions/glitch_subtle.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "spin_zoom",
+      "label": "Spin zoom",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "high",
+      "duration_s": 0.45,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "max_angle_deg": 12,
+        "a_scale_end": 1.4,
+        "b_angle_start_deg": -8
+      },
+      "preview": "transitions/spin_zoom.webp",
+      "feel": "The picture spins and zooms away while the next one spins in. Big energy.",
+      "beats": [
+        "reveal",
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/spin_zoom.webp",
+      "poster_url": "/transitions/spin_zoom.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "cube_left",
+      "label": "Cube turn left",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.45,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "left",
+        "perspective": 0.7
+      },
+      "preview": "transitions/cube_left.webp",
+      "feel": "The two pictures turn like the sides of a cube rotating to the left.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/cube_left.webp",
+      "poster_url": "/transitions/cube_left.poster.webp",
+      "preview_engine": "engine"
+    },
+    {
+      "id": "cube_right",
+      "label": "Cube turn right",
+      "pack": [
+        "dynamic"
+      ],
+      "energy": "medium",
+      "duration_s": 0.45,
+      "easing": "ease_in_out_cubic",
+      "params": {
+        "direction": "right",
+        "perspective": 0.7
+      },
+      "preview": "transitions/cube_right.webp",
+      "feel": "The two pictures turn like the sides of a cube rotating to the right.",
+      "beats": [
+        "topic_jump"
+      ],
+      "min_gap_s": 0.0,
+      "preview_url": "/transitions/cube_right.webp",
+      "poster_url": "/transitions/cube_right.poster.webp",
+      "preview_engine": "engine"
+    }
+  ],
+  "previews": {
+    "engine": "engine",
+    "frames": 24,
+    "width": 320,
+    "height": 180,
+    "frame_ms": [
+      600,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      45,
+      700
+    ],
+    "poster_eased": 0.4
+  }
+}

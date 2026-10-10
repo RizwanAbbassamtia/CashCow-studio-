@@ -6,6 +6,8 @@ import { useBlocker, type BlockerFunction } from "react-router";
 import { ApiError, errorMessage } from "../../api/client";
 import { approveStage, redoStage, useProjectCacheUpdate, useStagePayload } from "../../api/projects";
 import { parseScriptPayload, type ScriptApproveEdits, type ScriptDoc } from "../../types";
+import { ApprovingAs } from "../auth/ApprovingAs";
+import { ReviewButton } from "../auth/Gated";
 import { OriginalityPanel } from "../script/OriginalityPanel";
 import { Panel } from "../script/Panel";
 import { RegenerateDialog } from "../script/RegenerateDialog";
@@ -22,12 +24,11 @@ import {
   updateParagraph,
   wordCountStatus,
 } from "../script/scriptUtils";
-import { useReviewer } from "../script/useReviewer";
 import { WordCountMeter } from "../script/WordCountMeter";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/Dialog";
-import { Input, Textarea } from "../ui/Input";
+import { Textarea } from "../ui/Input";
 import { LoadingBlock } from "../ui/Spinner";
 import { EmptyState, ErrorState } from "../ui/States";
 import { useToast } from "../ui/Toast";
@@ -46,7 +47,6 @@ const FORMAT_LABEL = { long: "Long video", shorts: "Short" } as const;
  */
 export function ScriptReview({ projectId }: ScriptReviewProps) {
   const { toast } = useToast();
-  const reviewer = useReviewer(projectId);
   const updateCache = useProjectCacheUpdate();
 
   const payloadQuery = useStagePayload<unknown>(projectId, "script");
@@ -93,8 +93,8 @@ export function ScriptReview({ projectId }: ScriptReviewProps) {
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
   const approve = useMutation({
-    mutationFn: (body: { by: string; notes?: string; edits?: ScriptApproveEdits }) =>
-      approveStage(projectId, "script", body as { by: string; notes?: string; edits?: Record<string, unknown> }),
+    mutationFn: (body: { notes?: string; edits?: ScriptApproveEdits }) =>
+      approveStage(projectId, "script", body as { notes?: string; edits?: Record<string, unknown> }),
     onSuccess: (project) => {
       toast({ tone: "success", title: "Script approved", description: "The storyboard stage starts from this script." });
       setApproveNotes("");
@@ -114,7 +114,7 @@ export function ScriptReview({ projectId }: ScriptReviewProps) {
 
   const redo = useMutation({
     mutationFn: ({ notes, edits }: { notes: string; edits?: ScriptApproveEdits }) =>
-      redoStage(projectId, "script", { by: reviewer.effective, notes, edits: edits as Record<string, unknown> | undefined }),
+      redoStage(projectId, "script", { notes, edits: edits as Record<string, unknown> | undefined }),
     onSuccess: (project, variables) => {
       setRegenerateOpen(false);
       const locked = variables.edits?.locked_paragraph_ids?.length ?? 0;
@@ -175,7 +175,7 @@ export function ScriptReview({ projectId }: ScriptReviewProps) {
     if (textChanged) edits.script_md = scriptToMarkdown(draft);
     if (locksChanged || lockedIds.length > 0) edits.locked_paragraph_ids = lockedIds;
     if (overrideGates && showOverride) edits.override_gates = true;
-    const body: { by: string; notes?: string; edits?: ScriptApproveEdits } = { by: reviewer.effective };
+    const body: { notes?: string; edits?: ScriptApproveEdits } = {};
     if (approveNotes.trim()) body.notes = approveNotes.trim();
     if (Object.keys(edits).length > 0) body.edits = edits;
     approve.mutate(body);
@@ -207,12 +207,12 @@ export function ScriptReview({ projectId }: ScriptReviewProps) {
                 Discard changes
               </Button>
             ) : null}
-            <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateOpen(true)} disabled={busy}>
+            <ReviewButton variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateOpen(true)} disabled={busy}>
               Regenerate unlocked
-            </Button>
-            <Button variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
+            </ReviewButton>
+            <ReviewButton variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
               {dirty ? "Approve with my edits" : "Approve"}
-            </Button>
+            </ReviewButton>
           </>
         }
       >
@@ -309,10 +309,7 @@ export function ScriptReview({ projectId }: ScriptReviewProps) {
 
           <Panel title="Approve" description="Approving moves the project on to the storyboard.">
             <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-medium text-ink-muted">Your name</span>
-                <Input value={reviewer.name} onChange={(event) => reviewer.setName(event.target.value)} placeholder={reviewer.effective} autoComplete="name" />
-              </label>
+              <ApprovingAs />
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium text-ink-muted">Note for the project log (optional)</span>
                 <Textarea rows={2} value={approveNotes} onChange={(event) => setApproveNotes(event.target.value)} placeholder="Why this version is good to go" />
@@ -334,9 +331,9 @@ export function ScriptReview({ projectId }: ScriptReviewProps) {
                   </span>
                 </label>
               ) : null}
-              <Button variant="primary" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
+              <ReviewButton variant="primary" className="w-full" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
                 {dirty ? "Approve with my edits" : "Approve script"}
-              </Button>
+              </ReviewButton>
             </div>
           </Panel>
         </div>

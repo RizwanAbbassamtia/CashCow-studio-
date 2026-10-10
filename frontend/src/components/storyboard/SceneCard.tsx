@@ -7,12 +7,15 @@ import {
   MOTION_PRESETS,
   POPUP_POSITIONS,
   type MotionPreset,
+  type MotionStyle,
   type PopupPosition,
+  type ProjectFormat,
   type SceneLockField,
   type ScenePopup,
   type StoryboardAspect,
   type StoryboardScene,
   type TransitionOption,
+  type TransitionPack,
 } from "../../types";
 import { LockToggle } from "../script/LockToggle";
 import { Button } from "../ui/Button";
@@ -21,6 +24,7 @@ import { AutoTextarea } from "./AutoTextarea";
 import { PopupEditor } from "./PopupEditor";
 import { SceneImage } from "./SceneImage";
 import { formatSeconds, sceneImageUrl, type SceneBand } from "./storyboardUtils";
+import { TransitionPicker } from "./TransitionPicker";
 
 export interface SceneCardProps {
   projectId: string;
@@ -30,6 +34,12 @@ export interface SceneCardProps {
   aspect: StoryboardAspect;
   band: SceneBand;
   transitions: TransitionOption[];
+  /** the video's format: Shorts get shorter transitions */
+  format?: ProjectFormat;
+  /** the channel's transition pack (the picker opens on it) */
+  transitionPack?: TransitionPack;
+  /** the video's camera motion style (the motion chip says 2.5D for parallax) */
+  motionStyle?: MotionStyle;
   motionPresets?: ReadonlyArray<MotionPreset>;
   popupPositions?: ReadonlyArray<PopupPosition>;
   popupStyles: string[];
@@ -68,6 +78,9 @@ export function SceneCard({
   aspect,
   band,
   transitions,
+  format = "long",
+  transitionPack,
+  motionStyle = "ken_burns",
   motionPresets = MOTION_PRESETS,
   popupPositions = POPUP_POSITIONS,
   popupStyles,
@@ -92,7 +105,6 @@ export function SceneCard({
   const number = position + 1;
   const [minS, maxS] = band;
   const durationOk = scene.est_duration_s === 0 || (scene.est_duration_s >= minS && scene.est_duration_s <= maxS);
-  const transitionKnown = transitions.some((option) => option.type === scene.transition_out.type);
   const presetKnown = (motionPresets as ReadonlyArray<string>).includes(scene.motion.preset);
   const lockedCount = Object.values(scene.locked).filter(Boolean).length;
   const canSplit = scene.sentence_ids.length >= 2;
@@ -123,7 +135,7 @@ export function SceneCard({
         onDragEnd();
       }}
       className={cn(
-        "flex flex-col gap-3 rounded-card border bg-surface p-3 shadow-card transition-[border-color,box-shadow,opacity]",
+        "@container flex flex-col gap-3 rounded-card border bg-surface p-3 shadow-card transition-[border-color,box-shadow,opacity]",
         highlighted ? "border-accent ring-2 ring-accent/40" : dropTarget ? "border-accent/60" : "border-line",
         dragging && "opacity-50",
       )}
@@ -177,7 +189,15 @@ export function SceneCard({
         </div>
       </header>
 
-      <SceneImage image={scene.image} src={sceneImageUrl(projectId, scene)} aspect={aspect} prompt={scene.image_prompt} motionLabel={MOTION_LABELS[scene.motion.preset]} />
+      <SceneImage
+        image={scene.image}
+        src={sceneImageUrl(projectId, scene)}
+        aspect={aspect}
+        prompt={scene.image_prompt}
+        motionLabel={MOTION_LABELS[scene.motion.preset]}
+        motionPreset={scene.motion.preset}
+        parallax={motionStyle === "parallax"}
+      />
 
       <div className="flex flex-col gap-1.5">
         <FieldLabel locked={scene.locked.narration} onLock={(locked) => onLock("narration", locked)} subject="this scene's sentences">
@@ -222,7 +242,7 @@ export function SceneCard({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 @md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="flex flex-col gap-1.5">
           <FieldLabel locked={scene.locked.motion} onLock={(locked) => onLock("motion", locked)} subject="the motion">
             Motion
@@ -246,25 +266,16 @@ export function SceneCard({
             Transition out
           </FieldLabel>
           <div className="flex items-center gap-1.5">
-            <Select
-              value={scene.transition_out.type}
-              aria-label={`Scene ${number} transition`}
-              invalid={!transitionKnown}
-              onChange={(event) => {
-                const type = event.target.value;
-                const option = transitions.find((item) => item.type === type);
-                onChange({ transition_out: { type, duration_s: option?.duration_s ?? scene.transition_out.duration_s } });
-              }}
-              className="h-8 text-[13px]"
-              wrapperClassName="min-w-0 flex-1"
-            >
-              {!transitionKnown ? <option value={scene.transition_out.type}>{scene.transition_out.type} (unknown)</option> : null}
-              {transitions.map((option) => (
-                <option key={option.type} value={option.type}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+            <div className="min-w-0 flex-1">
+              <TransitionPicker
+                value={scene.transition_out}
+                onChange={(next) => onChange({ transition_out: { ...scene.transition_out, ...next } })}
+                format={format}
+                channelPack={transitionPack}
+                label={`Scene ${number} transition`}
+                fallbackOptions={transitions}
+              />
+            </div>
             <Input
               type="number"
               step={0.1}
@@ -277,7 +288,8 @@ export function SceneCard({
                 const parsed = Number(event.target.value);
                 if (!Number.isNaN(parsed)) onChange({ transition_out: { ...scene.transition_out, duration_s: parsed } });
               }}
-              className="h-8 w-16 px-2 text-[13px] tabular-nums"
+              // "!" beats the w-full and h-9 that Input brings, so the picker keeps the row.
+              className="h-8! w-16! shrink-0 px-2 text-[13px] tabular-nums"
             />
           </div>
         </div>

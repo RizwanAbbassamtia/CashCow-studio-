@@ -1,8 +1,22 @@
-import { Controller, type UseFormReturn } from "react-hook-form";
+import { Controller, useWatch, type UseFormReturn } from "react-hook-form";
 
 import type { ChannelFormValues } from "../../../lib/channelForm";
-import { IMAGE_TOOLS, ON_IMAGE_TEXT_OPTIONS, type ImageTool, type OnImageText } from "../../../types";
+import {
+  DEFAULT_MOTION_STYLE,
+  DEFAULT_TRANSITION_PACK,
+  IMAGE_TOOLS,
+  MOTION_STYLE_DESCRIPTIONS,
+  MOTION_STYLE_LABELS,
+  MOTION_STYLES,
+  ON_IMAGE_TEXT_OPTIONS,
+  TRANSITION_PACK_DESCRIPTIONS,
+  TRANSITION_PACK_LABELS,
+  TRANSITION_PACKS,
+  type ImageTool,
+  type OnImageText,
+} from "../../../types";
 import { NumberField } from "../../form/NumberField";
+import { TransitionPackPreview } from "../../storyboard/TransitionPackPreview";
 import { Field, FieldGrid, FormSection } from "../../ui/Field";
 import { Input, Select, Textarea } from "../../ui/Input";
 import { KnownKeysDatalist } from "./VoiceTab";
@@ -33,6 +47,8 @@ export function ImagesTab({ form }: { form: UseFormReturn<ChannelFormValues> }) 
     formState: { errors },
   } = form;
   const e = errors.images;
+  const pack = useWatch({ control, name: "images.transition_pack" }) ?? DEFAULT_TRANSITION_PACK;
+  const motionStyle = useWatch({ control, name: "images.motion_style" }) ?? DEFAULT_MOTION_STYLE;
 
   return (
     <div className="flex flex-col gap-10">
@@ -91,6 +107,35 @@ export function ImagesTab({ form }: { form: UseFormReturn<ChannelFormValues> }) 
             <Input id="images.popup_style" placeholder="Rounded box, brand yellow, bold Arial 64px, slide-in from left" {...register("images.popup_style")} />
           </Field>
         </FieldGrid>
+      </FormSection>
+
+      <FormSection
+        title="Motion and transitions"
+        description="How the camera moves over each picture and how one picture changes into the next. The storyboard AI picks transitions from the chosen pack; a reviewer can still pick any transition by hand."
+      >
+        <FieldGrid>
+          <Field label="Transition pack" htmlFor="images.transition_pack" hint={TRANSITION_PACK_DESCRIPTIONS[pack]}>
+            <Select id="images.transition_pack" {...register("images.transition_pack")}>
+              {TRANSITION_PACKS.map((option) => (
+                <option key={option} value={option}>
+                  {TRANSITION_PACK_LABELS[option]}
+                  {option === DEFAULT_TRANSITION_PACK ? " (default)" : ""}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Camera motion" htmlFor="images.motion_style" hint={MOTION_STYLE_DESCRIPTIONS[motionStyle]}>
+            <Select id="images.motion_style" {...register("images.motion_style")}>
+              {MOTION_STYLES.map((option) => (
+                <option key={option} value={option}>
+                  {MOTION_STYLE_LABELS[option]}
+                  {option === DEFAULT_MOTION_STYLE ? " (default)" : ""}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </FieldGrid>
+        <TransitionPackPreview pack={pack} />
       </FormSection>
 
       <FormSection title="Account" description="Keys themselves are entered once in Settings. Here you only name the key to use.">

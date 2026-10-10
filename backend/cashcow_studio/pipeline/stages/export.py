@@ -25,10 +25,15 @@ Approval edits (``apply_edits``): ``{metadata: {...}}`` changes the SEO fields,
 ``{altered_or_synthetic: bool}`` sets the disclosure flag, ``{headline: str}`` re-renders the
 chosen thumbnail's text only (no new picture). The same keys on a redo shape the new run.
 File copies and the Pillow work run in a worker thread that is waited for on a cancel.
+
+Every copy into the export folder is written to the activity log as ``export.done`` with
+the person who approved it (``ctx.user``), this laptop's name, the exported presets, the
+video length and the total size of the video files (docs/M5A-CONTRACT.md section 2).
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -39,6 +44,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from ...auth import audit as audit_log
+from ...auth import machine_name
 from ...export import exporter
 from ...export import seo as seo_module
 from ...export import thumbnail as thumbs
@@ -253,6 +260,44 @@ def _timeline_summary(timeline: dict[str, Any] | None) -> dict[str, Any]:
         "music_license_ok": music.get("license_ok"),
         "captions": captions.get("enabled"),
     }
+
+
+def _video_length(folder: Path) -> float | None:
+    """Seconds of the finished video: the edit timeline, else the voice clock."""
+    for relative in (("07_edit", "timeline.json"), ("05_voice", "timing.json")):
+        data = read_dict(folder.joinpath(*relative)) or {}
+        value = data.get("duration_s")
+        try:
+            seconds = float(value) if value is not None else None
+        except (TypeError, ValueError):
+            seconds = None
+        if seconds is not None and seconds > 0:
+            return round(seconds, 3)
+    return None
+
+
+def record_export(ctx: StageContext, doc: ExportDoc, metadata: ExportMetadata) -> None:
+    """``export.done`` in the activity log: who exported which video on which laptop."""
+    project = ctx.project
+    videos = [f for f in doc.files if f.kind == "video"]
+    audit_log.record(
+        ctx.settings.app_data_dir,
+        "export.done",
+        ctx.user,
+        machine=machine_name(),
+        project_id=project.id,
+        channel_slug=project.channel_slug,
+        detail={
+            "title": metadata.title or project.title,
+            "format": project.format,
+            "language": project.language,
+            "presets": [p for p in doc.presets if p not in doc.missing_presets],
+            "duration_s": _video_length(ctx.folder),
+            "size_bytes": sum(int(f.bytes or 0) for f in videos),
+            "files": len(doc.files),
+            "export_folder": doc.export_folder,
+        },
+    )
 
 
 class ExportStage:
@@ -636,6 +681,7 @@ class ExportStage:
         doc.exported = True
         doc.exported_at = utc_now()
         write_json_model(out / exporter.EXPORT_FILE, doc)
+        await asyncio.to_thread(record_export, ctx, doc, metadata)
         return [export_dir / f.name for f in doc.files]
 
     async def on_approve(self, ctx: StageContext) -> StageResult | None:

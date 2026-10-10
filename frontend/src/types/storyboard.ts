@@ -6,6 +6,7 @@
  * `GET /api/projects/{id}/stage/storyboard` carries the whole document plus the pickers'
  * option lists. Rectangles are fractions of the frame `[x, y, w, h]` in 0-1.
  */
+import { DEFAULT_TRANSITION_PACK, MOTION_STYLES, TRANSITION_PACKS, type MotionStyle, type TransitionPack } from "./channel";
 import type { GateResult, ProjectFormat } from "./project";
 import { parseGateResults } from "./script";
 
@@ -68,9 +69,11 @@ export interface SceneMotion {
 }
 
 export interface SceneTransition {
-  /** an xfade name from config/transitions.yaml */
+  /** a transition id from config/transitions.yaml (old xfade names such as "fade" still map) */
   type: string;
   duration_s: number;
+  /** the story moment at this cut: calm, reveal, topic_jump or section (set by the AI) */
+  beat?: string | null;
 }
 
 export interface SceneImage {
@@ -118,6 +121,8 @@ export interface StoryboardVariety {
   distinct_transitions: number;
   distinct_motions: number;
   warnings: string[];
+  /** uses per transition id, most used first */
+  transition_histogram: Record<string, number>;
 }
 
 /** `04_storyboard/storyboard.json` */
@@ -128,6 +133,10 @@ export interface StoryboardDoc {
   style_guide: string;
   negative_rules: string;
   popup_style: string;
+  /** the channel's transition pack when the storyboard was planned */
+  transition_pack: TransitionPack;
+  /** this video's camera motion; null = the channel's default */
+  motion_style: MotionStyle | null;
   generated_at: string;
   model: string;
   speaking_rate_wpm: number;
@@ -142,13 +151,22 @@ export interface StoryboardDoc {
 export interface TransitionOption {
   type: string;
   label: string;
+  /** default length for this video (pack range and Shorts factor applied) */
   duration_s: number;
+  energy?: TransitionEnergy;
+  /** the packs it belongs to */
+  packs?: TransitionPack[];
+  /** in the channel's pack (the AI only picks those) */
+  in_pack?: boolean;
+  feel?: string;
+  preview_url?: string;
+  poster_url?: string;
 }
 
 /** What `GET /api/projects/{id}/stage/storyboard` returns (`StoryboardReviewPayload`). */
 export interface StoryboardReviewPayload {
   storyboard: StoryboardDoc;
-  /** the allowed transitions; FALLBACK_TRANSITIONS when the backend sends none */
+  /** every transition, the channel's pack first; FALLBACK_TRANSITIONS when the backend sends none */
   transitions: TransitionOption[];
   motion_presets: MotionPreset[];
   popup_positions: PopupPosition[];
@@ -156,6 +174,74 @@ export interface StoryboardReviewPayload {
   scene_band_s: [number, number];
   /** popup style names to suggest (optional in the payload) */
   popup_styles: string[];
+  /** the channel's transition pack */
+  transition_pack: TransitionPack;
+  /** the channel's default motion style, when the server knows it */
+  channel_motion_style: MotionStyle | null;
+}
+
+// ---------------------------------------------------------------------------
+// The transition catalogue: frontend/public/transitions/catalogue.json, written from
+// config/transitions.yaml by tools/make_transition_previews.py (docs/TRANSITIONS-V2-CONTRACT.md
+// section 1). Read as a static file; mirrors backend/cashcow_studio/models/transitions.py.
+// ---------------------------------------------------------------------------
+
+export const TRANSITION_ENERGIES = ["calm", "medium", "high"] as const;
+export type TransitionEnergy = (typeof TRANSITION_ENERGIES)[number];
+
+export const TRANSITION_ENERGY_LABELS: Record<TransitionEnergy, string> = {
+  calm: "Calm",
+  medium: "Medium",
+  high: "High",
+};
+
+/** The story moments a transition suits, in the words the picker shows. */
+export const TRANSITION_BEAT_LABELS: Record<string, string> = {
+  calm: "calm moments",
+  reveal: "reveals",
+  topic_jump: "jumps to a new idea",
+  section: "the end of a section",
+};
+
+export interface TransitionPackInfo {
+  label: string;
+  description: string;
+  /** [shortest, longest] default length of a transition in this pack */
+  duration_s: [number, number];
+  /** the transition out of the last scene */
+  closer: string;
+}
+
+export interface TransitionCatalogueEntry {
+  id: string;
+  label: string;
+  pack: TransitionPack[];
+  energy: TransitionEnergy;
+  duration_s: number;
+  easing: string;
+  params: Record<string, unknown>;
+  feel: string;
+  beats: string[];
+  /** signature effects: none of them again within this many seconds */
+  min_gap_s: number;
+  /** animated preview, e.g. /transitions/film_dissolve.webp */
+  preview_url: string;
+  /** a still from the middle of the transition */
+  poster_url: string;
+  /** "engine" or "stand-in" (a placeholder dissolve until the previews are made again) */
+  preview_engine: string;
+}
+
+export interface TransitionCatalogue {
+  version: number;
+  default: string;
+  default_pack: TransitionPack;
+  last_scene: string;
+  shorts_duration_factor: number;
+  packs: Record<TransitionPack, TransitionPackInfo>;
+  /** old xfade names -> v2 ids */
+  legacy: Record<string, string>;
+  transitions: TransitionCatalogueEntry[];
 }
 
 /** `edits` on `POST .../stage/storyboard/approve`: the whole edited document. */
@@ -176,38 +262,61 @@ export const POPUP_MAX_WORDS = 6;
 export const MIN_TEXT_SHARE = 0.35;
 
 /**
- * config/transitions.yaml as of M2, used only when the payload carries no list. The backend's
- * file is the real source; keep this in step with it.
+ * The cinematic pack of config/transitions.yaml (v2), used only when the payload carries no
+ * list. The backend's file (and catalogue.json) is the real source; keep this in step with it.
  */
 export const FALLBACK_TRANSITIONS: TransitionOption[] = [
-  { type: "fade", label: "Cross fade", duration_s: 0.6 },
-  { type: "fadeblack", label: "Fade through black", duration_s: 0.8 },
-  { type: "fadewhite", label: "Fade through white", duration_s: 0.8 },
-  { type: "dissolve", label: "Dissolve", duration_s: 0.7 },
-  { type: "wipeleft", label: "Wipe left", duration_s: 0.5 },
-  { type: "wiperight", label: "Wipe right", duration_s: 0.5 },
-  { type: "wipeup", label: "Wipe up", duration_s: 0.5 },
-  { type: "wipedown", label: "Wipe down", duration_s: 0.5 },
-  { type: "slideleft", label: "Slide left", duration_s: 0.5 },
-  { type: "slideright", label: "Slide right", duration_s: 0.5 },
-  { type: "slideup", label: "Slide up", duration_s: 0.5 },
-  { type: "slidedown", label: "Slide down", duration_s: 0.5 },
-  { type: "smoothleft", label: "Smooth wipe left", duration_s: 0.6 },
-  { type: "smoothright", label: "Smooth wipe right", duration_s: 0.6 },
-  { type: "smoothup", label: "Smooth wipe up", duration_s: 0.6 },
-  { type: "smoothdown", label: "Smooth wipe down", duration_s: 0.6 },
-  { type: "circleopen", label: "Circle open", duration_s: 0.7 },
-  { type: "circleclose", label: "Circle close", duration_s: 0.7 },
-  { type: "radial", label: "Radial sweep", duration_s: 0.7 },
-  { type: "zoomin", label: "Zoom in", duration_s: 0.6 },
-  { type: "pixelize", label: "Pixelate", duration_s: 0.5 },
-  { type: "hlslice", label: "Horizontal slices", duration_s: 0.5 },
-  { type: "vuslice", label: "Vertical slices", duration_s: 0.5 },
-  { type: "diagtl", label: "Diagonal (top left)", duration_s: 0.6 },
-  { type: "diagbr", label: "Diagonal (bottom right)", duration_s: 0.6 },
-  { type: "distance", label: "Distance blur", duration_s: 0.7 },
-  { type: "fadegrays", label: "Fade through grey", duration_s: 0.8 },
+  { type: "film_dissolve", label: "Film dissolve", duration_s: 0.7, energy: "calm" },
+  { type: "dip_black", label: "Dip to black", duration_s: 0.8, energy: "calm" },
+  { type: "dip_white", label: "Dip to white", duration_s: 0.8, energy: "calm" },
+  { type: "blur_dissolve", label: "Blur dissolve", duration_s: 0.7, energy: "calm" },
+  { type: "luma_wipe_left", label: "Wipe left", duration_s: 0.6, energy: "medium" },
+  { type: "luma_wipe_right", label: "Wipe right", duration_s: 0.6, energy: "medium" },
+  { type: "luma_wipe_up", label: "Wipe up", duration_s: 0.6, energy: "medium" },
+  { type: "luma_wipe_down", label: "Wipe down", duration_s: 0.6, energy: "medium" },
+  { type: "luma_wipe_diag", label: "Diagonal wipe", duration_s: 0.6, energy: "medium" },
+  { type: "light_leak_warm", label: "Warm light leak", duration_s: 0.8, energy: "medium" },
+  { type: "film_burn", label: "Film burn", duration_s: 0.8, energy: "high" },
+  { type: "morph_blend", label: "Morph blend", duration_s: 0.8, energy: "calm" },
+  { type: "zoom_through", label: "Zoom through", duration_s: 0.7, energy: "medium" },
+  { type: "crosswarp", label: "Cross warp", duration_s: 0.7, energy: "medium" },
 ];
+
+/**
+ * Old FFmpeg xfade names (storyboards from before transitions v2) and their v2 ids, as in the
+ * `legacy` table of config/transitions.yaml; used when catalogue.json has not loaded.
+ */
+export const LEGACY_TRANSITIONS: Record<string, string> = {
+  fade: "film_dissolve",
+  dissolve: "film_dissolve",
+  fadegrays: "film_dissolve",
+  fadeblack: "dip_black",
+  fadewhite: "dip_white",
+  wipeleft: "luma_wipe_left",
+  wiperight: "luma_wipe_right",
+  wipeup: "luma_wipe_up",
+  wipedown: "luma_wipe_down",
+  smoothleft: "luma_wipe_left",
+  smoothright: "luma_wipe_right",
+  smoothup: "luma_wipe_up",
+  smoothdown: "luma_wipe_down",
+  diagtl: "luma_wipe_diag",
+  diagtr: "luma_wipe_diag",
+  diagbl: "luma_wipe_diag",
+  diagbr: "luma_wipe_diag",
+  slideleft: "push_left",
+  slideright: "push_right",
+  slideup: "push_up",
+  slidedown: "push_down",
+  zoomin: "zoom_through",
+  circleopen: "film_dissolve",
+  circleclose: "film_dissolve",
+  radial: "film_dissolve",
+  pixelize: "film_dissolve",
+  hlslice: "film_dissolve",
+  vuslice: "film_dissolve",
+  distance: "film_dissolve",
+};
 
 export const DEFAULT_POPUP_STYLES = ["bold", "caption", "highlight", "sticker", "lower-third"];
 
@@ -256,7 +365,7 @@ export function defaultScene(index: number): StoryboardScene {
 }
 
 export function emptyVariety(): StoryboardVariety {
-  return { scenes: 0, avg_scene_s: 0, popup_share: 0, distinct_transitions: 0, distinct_motions: 0, warnings: [] };
+  return { scenes: 0, avg_scene_s: 0, popup_share: 0, distinct_transitions: 0, distinct_motions: 0, warnings: [], transition_histogram: {} };
 }
 
 // ---------------------------------------------------------------------------
@@ -294,6 +403,10 @@ function oneOf<T extends string>(value: unknown, allowed: ReadonlyArray<T>, fall
 
 function listOf<T extends string>(value: unknown, allowed: ReadonlyArray<T>): T[] {
   return strList(value).filter((item): item is T => (allowed as ReadonlyArray<string>).includes(item));
+}
+
+function motionStyleOrNull(value: unknown): MotionStyle | null {
+  return typeof value === "string" && (MOTION_STYLES as ReadonlyArray<string>).includes(value) ? (value as MotionStyle) : null;
 }
 
 function rect(value: unknown, fallback: Rect): Rect {
@@ -377,6 +490,15 @@ export function parseScene(raw: unknown, position: number): StoryboardScene {
   };
 }
 
+function countMap(value: unknown): Record<string, number> {
+  const counts: Record<string, number> = {};
+  if (!isRecord(value)) return counts;
+  for (const [key, count] of Object.entries(value)) {
+    if (typeof count === "number" && Number.isFinite(count)) counts[key] = count;
+  }
+  return counts;
+}
+
 export function parseVariety(raw: unknown): StoryboardVariety {
   const base = emptyVariety();
   if (!isRecord(raw)) return base;
@@ -388,6 +510,7 @@ export function parseVariety(raw: unknown): StoryboardVariety {
     distinct_transitions: num(raw.distinct_transitions),
     distinct_motions: num(raw.distinct_motions),
     warnings: strList(raw.warnings),
+    transition_histogram: countMap(raw.transition_histogram),
   };
 }
 
@@ -402,6 +525,8 @@ export function parseStoryboardDoc(raw: unknown): StoryboardDoc | null {
     style_guide: str(raw.style_guide),
     negative_rules: str(raw.negative_rules),
     popup_style: str(raw.popup_style),
+    transition_pack: oneOf(raw.transition_pack, TRANSITION_PACKS, DEFAULT_TRANSITION_PACK),
+    motion_style: motionStyleOrNull(raw.motion_style),
     generated_at: str(raw.generated_at),
     model: str(raw.model),
     speaking_rate_wpm: num(raw.speaking_rate_wpm, 150),
@@ -413,17 +538,33 @@ export function parseStoryboardDoc(raw: unknown): StoryboardDoc | null {
   };
 }
 
-/** Accepts `[{type,label,duration_s}]`, `["fade", ...]` or `{fade: {label, duration_s}}`. */
+function optionExtras(item: Record<string, unknown>): Partial<TransitionOption> {
+  const extras: Partial<TransitionOption> = {};
+  if (typeof item.energy === "string" && (TRANSITION_ENERGIES as ReadonlyArray<string>).includes(item.energy)) {
+    extras.energy = item.energy as TransitionEnergy;
+  }
+  const packs = listOf(item.packs ?? item.pack, TRANSITION_PACKS);
+  if (packs.length > 0) extras.packs = packs;
+  if (typeof item.in_pack === "boolean") extras.in_pack = item.in_pack;
+  if (typeof item.feel === "string") extras.feel = item.feel;
+  if (typeof item.preview_url === "string") extras.preview_url = item.preview_url;
+  if (typeof item.poster_url === "string") extras.poster_url = item.poster_url;
+  return extras;
+}
+
+/** Accepts `[{type|id,label,duration_s,...}]`, `["fade", ...]` or `{fade: {label, duration_s}}`. */
 export function parseTransitions(raw: unknown): TransitionOption[] {
   const options: TransitionOption[] = [];
   if (Array.isArray(raw)) {
     for (const item of raw) {
       if (typeof item === "string") options.push({ type: item, label: item, duration_s: 0.6 });
-      else if (isRecord(item) && typeof item.type === "string") {
+      else if (isRecord(item) && (typeof item.type === "string" || typeof item.id === "string")) {
+        const type = typeof item.type === "string" ? item.type : (item.id as string);
         options.push({
-          type: item.type,
-          label: str(item.label, item.type),
+          type,
+          label: str(item.label, type),
           duration_s: num(item.duration_s, num(item.default_duration_s, 0.6)),
+          ...optionExtras(item),
         });
       }
     }
@@ -456,5 +597,107 @@ export function parseStoryboardPayload(raw: unknown): StoryboardReviewPayload | 
     popup_positions: positions.length > 0 ? positions : [...POPUP_POSITIONS],
     scene_band_s: band.length === 2 && band[0]! > 0 && band[1]! > band[0]! ? [band[0]!, band[1]!] : fallbackBand,
     popup_styles: strList(raw.popup_styles),
+    transition_pack: oneOf(raw.transition_pack, TRANSITION_PACKS, storyboard.transition_pack),
+    channel_motion_style: motionStyleOrNull(raw.channel_motion_style),
   };
+}
+
+// ---------------------------------------------------------------------------
+// The transition catalogue (catalogue.json): parsing and the lookups the pickers need. The
+// rules mirror TransitionCatalog in backend/cashcow_studio/models/transitions.py.
+// ---------------------------------------------------------------------------
+
+function parsePackInfo(raw: unknown, pack: TransitionPack): TransitionPackInfo {
+  const fallback: TransitionPackInfo = { label: pack.charAt(0).toUpperCase() + pack.slice(1), description: "", duration_s: [0.5, 0.8], closer: "dip_black" };
+  if (!isRecord(raw)) return fallback;
+  const range = Array.isArray(raw.duration_s) && raw.duration_s.length === 2 ? raw.duration_s.map((v) => num(v)) : [];
+  return {
+    label: str(raw.label, fallback.label),
+    description: str(raw.description),
+    duration_s: range.length === 2 && range[0]! > 0 && range[1]! >= range[0]! ? [range[0]!, range[1]!] : fallback.duration_s,
+    closer: str(raw.closer, fallback.closer),
+  };
+}
+
+function parseCatalogueEntry(raw: unknown): TransitionCatalogueEntry | null {
+  if (!isRecord(raw) || typeof raw.id !== "string" || !raw.id) return null;
+  const id = raw.id;
+  const packs = listOf(raw.pack ?? raw.packs, TRANSITION_PACKS);
+  return {
+    id,
+    label: str(raw.label, id),
+    pack: packs.length > 0 ? packs : [...TRANSITION_PACKS],
+    energy: oneOf(raw.energy, TRANSITION_ENERGIES, "medium"),
+    duration_s: num(raw.duration_s, 0.6),
+    easing: str(raw.easing, "ease_in_out_cubic"),
+    params: isRecord(raw.params) ? raw.params : {},
+    feel: str(raw.feel),
+    beats: strList(raw.beats),
+    min_gap_s: num(raw.min_gap_s),
+    preview_url: str(raw.preview_url, `/transitions/${id}.webp`),
+    poster_url: str(raw.poster_url, `/transitions/${id}.poster.webp`),
+    preview_engine: str(raw.preview_engine, "engine"),
+  };
+}
+
+/** catalogue.json -> a catalogue, or null when it holds no transitions. */
+export function parseTransitionCatalogue(raw: unknown): TransitionCatalogue | null {
+  if (!isRecord(raw) || !Array.isArray(raw.transitions)) return null;
+  const transitions = raw.transitions.map(parseCatalogueEntry).filter((entry): entry is TransitionCatalogueEntry => entry !== null);
+  if (transitions.length === 0) return null;
+  const packsRaw = isRecord(raw.packs) ? raw.packs : {};
+  const packs = Object.fromEntries(TRANSITION_PACKS.map((pack) => [pack, parsePackInfo(packsRaw[pack], pack)])) as Record<TransitionPack, TransitionPackInfo>;
+  const ids = new Set(transitions.map((entry) => entry.id));
+  const legacy: Record<string, string> = {};
+  if (isRecord(raw.legacy)) {
+    for (const [old, next] of Object.entries(raw.legacy)) if (typeof next === "string" && ids.has(next)) legacy[old] = next;
+  }
+  const fallbackDefault = ids.has("film_dissolve") ? "film_dissolve" : transitions[0]!.id;
+  const defaultId = typeof raw.default === "string" && ids.has(raw.default) ? raw.default : fallbackDefault;
+  return {
+    version: num(raw.version, 2),
+    default: defaultId,
+    default_pack: oneOf(raw.default_pack, TRANSITION_PACKS, DEFAULT_TRANSITION_PACK),
+    last_scene: typeof raw.last_scene === "string" && ids.has(raw.last_scene) ? raw.last_scene : defaultId,
+    shorts_duration_factor: num(raw.shorts_duration_factor, 0.6),
+    packs,
+    legacy,
+    transitions,
+  };
+}
+
+/** The v2 id for an id or an old xfade name ("wipeleft" -> "luma_wipe_left"); null when unknown. */
+export function resolveTransitionId(catalogue: TransitionCatalogue | null, name: string | null | undefined): string | null {
+  if (!name) return null;
+  if (catalogue) {
+    if (catalogue.transitions.some((entry) => entry.id === name)) return name;
+    const clean = name.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (catalogue.transitions.some((entry) => entry.id === clean)) return clean;
+    return catalogue.legacy[name] ?? catalogue.legacy[clean] ?? catalogue.legacy[clean.replace(/_/g, "")] ?? null;
+  }
+  return LEGACY_TRANSITIONS[name] ?? (FALLBACK_TRANSITIONS.some((option) => option.type === name) ? name : null);
+}
+
+export function findTransition(catalogue: TransitionCatalogue | null, name: string | null | undefined): TransitionCatalogueEntry | null {
+  const id = resolveTransitionId(catalogue, name);
+  return id && catalogue ? (catalogue.transitions.find((entry) => entry.id === id) ?? null) : null;
+}
+
+/** The transitions of one pack, in catalogue order. */
+export function transitionsInPack(catalogue: TransitionCatalogue, pack: TransitionPack): TransitionCatalogueEntry[] {
+  return catalogue.transitions.filter((entry) => entry.pack.includes(pack));
+}
+
+/**
+ * Default length in seconds, like `duration_for` on the server: the entry's own length brought
+ * into the pack's range when it belongs to `pack`, times the Shorts factor for Shorts.
+ */
+export function transitionDuration(catalogue: TransitionCatalogue, entry: TransitionCatalogueEntry, pack: TransitionPack | null, format: ProjectFormat): number {
+  let seconds = entry.duration_s;
+  if (pack && entry.pack.includes(pack)) {
+    const [low, high] = catalogue.packs[pack].duration_s;
+    seconds = Math.min(Math.max(seconds, low), high);
+  }
+  if (format === "shorts") seconds *= catalogue.shorts_duration_factor;
+  return Math.round(seconds * 100) / 100;
 }

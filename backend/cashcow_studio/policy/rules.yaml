@@ -161,10 +161,24 @@ rules:
     title: Transitions from the approved list
     stage: storyboard
     severity: block
-    description: Only xfade transition names listed in config/transitions.yaml.
+    description: >
+      Only transition ids listed in config/transitions.yaml (or the old xfade names that
+      map to them).
     source: internal
-    last_verified: 2026-10-09
+    last_verified: 2026-10-10
     parameters: {}
+
+  - id: storyboard.visual_variety
+    title: Varied transitions
+    stage: storyboard
+    severity: warn
+    description: >
+      A long video uses at least four different transitions; the same one or two cuts over
+      and over reads as templated, mass-produced content. Shorts and storyboards with fewer
+      scenes than min_scenes are not judged.
+    source: https://support.google.com/youtube/answer/1311392
+    last_verified: 2026-10-10
+    parameters: { min_distinct: 4, min_scenes: 8, formats: [long] }
 
   - id: storyboard.popup_words
     title: Popups at most six words

@@ -227,6 +227,11 @@ export interface SettingsUpdate {
   voice?: VoiceSettings;
   render?: RenderSettings;
   captions?: CaptionsSettings;
+  /**
+   * Go ahead with a new shared folder after the server's 409 explained it: the folder's accounts
+   * do not include you (you would be signed out), or it holds channels but no accounts yet.
+   */
+  confirm_team_folder?: boolean;
 }
 
 /** The nested settings with every gap filled from the defaults, plus what the backend sent. */

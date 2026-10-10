@@ -217,8 +217,10 @@ def test_build_timeline_from_the_mock_project(render_tmp: Path) -> None:
             assert rect[2] / rect[3] == pytest.approx(16 / 9, abs=1e-2)
             assert rect[0] >= 0 and rect[1] >= 0 and rect[0] + rect[2] <= 1024.01
         assert scene.transition_out.duration_s <= 0.25 * (scene.end_s - scene.start_s) + 1e-6
-    assert [s.transition_out.type for s in timeline.scenes] == ["fade", "wipeleft", "fadeblack"]
-    assert timeline.transition_types == ["fade", "wipeleft", "fadeblack"]
+    # The fixture storyboard uses the old xfade names; the timeline carries their v2 looks.
+    v2 = ["film_dissolve", "luma_wipe_left", "dip_black"]
+    assert [s.transition_out.type for s in timeline.scenes] == v2
+    assert timeline.transition_types == v2
     # Two scenes carry a popup; the key sentence + 0.3 s rule holds.
     assert [(p.scene, p.text) for p in timeline.popups] == [
         (0, "Five every morning"), (2, "A folded note"),

@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Storyboard v2 mockup</title>
+<meta name="description" content="CashCow Studio Storyboard v2 high-fidelity mockup at 1440 x 900.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* App tokens: frontend/src/index.css (dark theme) */
+  --cfs-canvas:#0b1220; --cfs-surface:#111a2e; --cfs-surface-2:#182340; --cfs-line:#1e2a45; --cfs-line-strong:#2b3a5c;
+  --cfs-ink:#e8edf7; --cfs-ink-muted:#96a3bc; --cfs-ink-faint:#7c8ba3;
+  --accent:#ffc000; --accent-hover:#ffd033; --accent-ink:#0b1220;
+  --ok:#22c55e; --warn:#f59e0b; --fail:#ef4444; --info:#60a5fa;
+  /* Editor sub-theme (EDITOR-DESIGN.md 2.2): graphite-navy, about half the dashboard's saturation */
+  --ed-canvas:#0a0d14; --ed-panel:#141924; --ed-panel-2:#181e2a; --ed-raised:#1e2533; --ed-raised-hi:#283044;
+  --ed-track:#10141c; --ed-track-2:#121722; --ed-line:#232b3b; --ed-line-strong:#2f3a50;
+  /* Lane colours */
+  --lane-scene:#24365c; --lane-popup:#6b4fa8; --lane-caption:#8b4f41; --lane-voice:#0e5566; --lane-voice-wave:#7fd6e6;
+  --lane-music:#2f6b4f; --lane-music-wave:#9be0b8; --lane-marker:#60a5fa;
+  --font-ui:"Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--ed-canvas);color:var(--cfs-ink);font:12px/16px var(--font-ui);font-feature-settings:"cv11","ss01";
+  -webkit-font-smoothing:antialiased;min-width:1100px}
+.state{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+.ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+.ico.s14{width:14px;height:14px}.ico.s12{width:12px;height:12px}.ico.s18{width:18px;height:18px}
+.tnum{font-feature-settings:"tnum"}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--cfs-ink-muted)}.faint{color:var(--cfs-ink-faint)}
+.ml-auto{margin-left:auto}
+.screen{position:relative;height:100vh;min-height:720px;display:grid;grid-template-columns:48px minmax(0,1fr);
+  grid-template-rows:44px minmax(0,1fr);overflow:hidden;background:var(--ed-canvas)}
+
+/* App rail (the collapsed sidebar) */
+.rail{grid-row:1/3;grid-column:1;background:var(--ed-canvas);border-right:1px solid var(--ed-line);display:flex;
+  flex-direction:column;align-items:center;padding:8px 0 10px;gap:4px;z-index:3}
+.rail .mark{width:28px;height:28px;margin:0 0 12px}
+.rail a{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;color:var(--cfs-ink-faint);position:relative}
+.rail a:hover{background:var(--ed-raised);color:var(--cfs-ink)}
+.rail a.on{color:var(--cfs-ink);background:var(--ed-panel-2)}
+.rail a.on::before{content:"";position:absolute;left:-6px;top:9px;bottom:9px;width:2px;border-radius:0 2px 2px 0;background:var(--accent)}
+.rail .cnt{position:absolute;top:3px;right:2px;min-width:15px;height:15px;border-radius:8px;background:var(--ed-raised-hi);
+  border:1px solid var(--ed-line-strong);color:var(--cfs-ink);font-size:9px;font-weight:700;display:grid;place-items:center;padding:0 3px}
+.rail .spacer{flex:1}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3b5b8f,#24365c);color:#fff;
+  font-size:10.5px;font-weight:600;display:grid;place-items:center;box-shadow:0 0 0 1px rgba(255,255,255,.08)}
+.tip{position:relative}
+.tip[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);
+  background:#05070b;color:var(--cfs-ink);border:1px solid var(--ed-line-strong);padding:4px 8px;border-radius:5px;font-size:11px;
+  white-space:nowrap;z-index:90;pointer-events:none}
+.tip.below[data-tip]:hover::after{left:50%;top:calc(100% + 6px);transform:translateX(-50%)}
+.tip.left[data-tip]:hover::after{left:auto;right:calc(100% + 8px)}
+
+/* Top bar */
+.topbar{grid-column:2;grid-row:1;display:grid;grid-template-columns:var(--tb-left) minmax(0,1fr) var(--tb-right);align-items:center;
+  background:var(--ed-canvas);border-bottom:1px solid var(--ed-line);min-width:0;z-index:4}
+.tb-seg{display:flex;align-items:center;gap:6px;padding:0 10px;min-width:0;height:100%}
+.tb-title{display:flex;flex-direction:column;min-width:0;line-height:15px}
+.tb-title b{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.tb-title span{font-size:11px;color:var(--cfs-ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.saved{display:flex;align-items:center;gap:5px;color:var(--cfs-ink-faint);font-size:11.5px;white-space:nowrap}
+.saved .ico{color:#4ade80}
+.vsep{width:1px;height:20px;background:var(--ed-line);margin:0 4px;flex:none}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--ed-line);
+  background:var(--ed-raised);color:var(--cfs-ink);font:500 12px/1 var(--font-ui);white-space:nowrap;cursor:default;flex:none;
+  user-select:none;transition:background-color .12s,border-color .12s,color .12s}
+.btn:hover{border-color:var(--ed-line-strong);background:var(--ed-raised-hi)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--cfs-ink-muted)}
+.btn.ghost:hover{background:var(--ed-raised);color:var(--cfs-ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn.icon{width:28px;padding:0;justify-content:center}
+.btn.sm{height:24px;padding:0 8px;font-size:11.5px;gap:5px}
+.btn.sm.icon{width:24px;padding:0}
+.btn.dis{opacity:.42;pointer-events:none}
+.btn .caret{margin-left:2px;opacity:.75}
+.btn.split{padding-right:0;gap:0}
+.btn.split .lbl{padding-right:9px;display:flex;align-items:center;gap:6px}
+.btn.split .dd{height:100%;display:grid;place-items:center;padding:0 7px;border-left:1px solid rgba(11,18,32,.25)}
+
+/* Segmented control */
+.seg{display:inline-flex;padding:2px;gap:2px;border-radius:7px;background:var(--ed-panel);border:1px solid var(--ed-line);flex:none}
+.seg>span{height:24px;padding:0 11px;display:flex;align-items:center;gap:6px;border-radius:5px;color:var(--cfs-ink-muted);font-weight:500;white-space:nowrap}
+.seg>span:not(.on):not(.off):hover{color:var(--cfs-ink);background:var(--ed-raised)}
+.seg>span.on{background:var(--ed-raised-hi);color:var(--cfs-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.seg>span.off{opacity:.45}
+.seg.sm>span{height:20px;padding:0 8px;font-size:11px}
+
+/* Pills and chips */
+.pill{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:500;
+  border:1px solid var(--ed-line);background:var(--ed-panel);color:var(--cfs-ink-muted);white-space:nowrap;flex:none}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{color:#4ade80;border-color:rgba(34,197,94,.32);background:rgba(34,197,94,.08)}
+.pill.warn{color:#fbbf24;border-color:rgba(245,158,11,.32);background:rgba(245,158,11,.08)}
+.pill.fail{color:#f87171;border-color:rgba(239,68,68,.38);background:rgba(239,68,68,.09)}
+.pill.info{color:#93c5fd;border-color:rgba(96,165,250,.32);background:rgba(96,165,250,.08)}
+.pill.sm{height:20px;padding:0 7px;font-size:10.5px;gap:5px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--ed-raised);
+  border:1px solid var(--ed-line);color:var(--cfs-ink-muted);font-size:11px;font-weight:500;white-space:nowrap}
+.chip:hover{border-color:var(--ed-line-strong);color:var(--cfs-ink)}
+.chip.on{background:var(--ed-raised-hi);border-color:#4a5874;color:var(--cfs-ink)}
+.kbd{font:500 10px/1 var(--font-mono);color:var(--cfs-ink-faint);border:1px solid var(--ed-line-strong);border-radius:4px;padding:2px 4px}
+
+/* Panels */
+.panel{background:var(--ed-panel);border-radius:6px;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.panel-h{height:32px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--ed-panel-2);border-bottom:1px solid var(--ed-line)}
+.panel-h .t{font-weight:600;font-size:12px;white-space:nowrap}
+.sec-label{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--cfs-ink-muted)}
+.scroll{overflow:auto;min-height:0}
+.scroll::-webkit-scrollbar{width:10px;height:10px}
+.scroll::-webkit-scrollbar-thumb{background:#2a3347;border-radius:6px;border:2px solid var(--ed-panel)}
+.scroll::-webkit-scrollbar-track{background:transparent}
+
+/* Inspector building blocks */
+.insp-h{padding:10px 12px;border-bottom:1px solid var(--ed-line);background:var(--ed-panel-2);flex:none}
+.insp-h .r1{display:flex;align-items:center;gap:8px}
+.insp-h h2{margin:0;font-size:14px;line-height:18px;font-weight:600;white-space:nowrap}
+.insp-h .meta{margin-top:4px;color:var(--cfs-ink-muted);font-size:11.5px;font-feature-settings:"tnum";white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.isec{border-bottom:1px solid var(--ed-line)}
+.isec-h{height:32px;display:flex;align-items:center;gap:7px;padding:0 12px;min-width:0}
+.isec-h:hover{background:rgba(255,255,255,.02)}
+.isec-h .chev{color:var(--cfs-ink-faint);transition:transform .15s}
+.isec.closed .isec-h .chev{transform:rotate(-90deg)}
+.isec-h .sum{margin-left:auto;color:var(--cfs-ink-muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;text-align:right}
+.isec-b{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+.flbl{font-size:11px;color:var(--cfs-ink-faint);font-weight:500}
+.field{display:flex;align-items:center;height:24px;border-radius:5px;background:var(--ed-raised);border:1px solid var(--ed-line);
+  padding:0 7px;font-size:12px;font-feature-settings:"tnum";color:var(--cfs-ink);min-width:0;white-space:nowrap}
+.field:hover{border-color:var(--ed-line-strong)}
+.field .u{color:var(--cfs-ink-faint);margin-left:3px}
+.field .ico{color:var(--cfs-ink-faint);margin-left:auto}
+.textarea{border-radius:5px;background:var(--ed-raised);border:1px solid var(--ed-line);padding:6px 8px;font-size:12px;line-height:17px;color:var(--cfs-ink)}
+.edited-dot{width:6px;height:6px;border-radius:50%;background:#e8edf7;display:inline-block;flex:none}
+.lockbtn{width:24px;height:24px;display:grid;place-items:center;border-radius:5px;color:var(--cfs-ink-faint);border:1px solid transparent}
+.lockbtn:hover{background:var(--ed-raised);color:var(--cfs-ink);border-color:var(--ed-line)}
+.posgrid{display:grid;grid-template-columns:repeat(3,10px);grid-template-rows:repeat(3,8px);gap:3px;padding:4px 5px;border-radius:5px;
+  background:var(--ed-raised);border:1px solid var(--ed-line);flex:none}
+.posgrid i{width:10px;height:8px;border-radius:2px;background:#2e3850}
+.posgrid i.x{background:transparent}
+.posgrid i.on{background:var(--accent)}
+
+/* Frame overlays drawn by the preview engine (scaled with the frame through container units) */
+.frame{position:relative;overflow:hidden;container-type:size;background:#0d0d0d}
+.frame>svg.art{position:absolute;inset:0;width:100%;height:100%;display:block}
+.popup{position:absolute;background:#ffc000;color:#0b1220;font:800 5.93cqh/1.12 "Inter",Arial,sans-serif;padding:2.05cqh 2.4cqh 2.2cqh;
+  border-radius:1.67cqh;box-shadow:0 .7cqh 2cqh rgba(0,0,0,.35);letter-spacing:-.01em;white-space:nowrap}
+.popup.top-left{left:5.56cqh;top:5.56cqh}.popup.top-right{right:5.56cqh;top:5.56cqh}
+.popup.bottom-left{left:5.56cqh;bottom:5.56cqh}.popup.bottom-right{right:5.56cqh;bottom:5.56cqh}
+.popup.center{left:50%;top:50%;transform:translate(-50%,-50%)}
+.caption{position:absolute;left:0;right:0;bottom:5.56cqh;text-align:center;font:700 4.44cqh/1.24 "Noto Sans","Inter",Arial,sans-serif;color:#fff;
+  text-shadow:.22cqh 0 0 #000,-.22cqh 0 0 #000,0 .22cqh 0 #000,0 -.22cqh 0 #000,.16cqh .16cqh 0 #000,-.16cqh -.16cqh 0 #000,.16cqh -.16cqh 0 #000,-.16cqh .16cqh 0 #000}
+.caption .aw{color:#ffe34d}
+
+/* Annex below the screen */
+.annex{border-top:1px solid var(--ed-line);background:#0c1018;padding:28px 32px 48px}
+.annex .wrap{max-width:1376px;margin:0 auto}
+.annex h1{font-size:18px;line-height:24px;margin:0 0 4px;font-weight:600}
+.annex h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--cfs-ink-muted);margin:28px 0 12px;font-weight:600}
+.annex p{color:var(--cfs-ink-muted);margin:0;font-size:12.5px;line-height:19px}
+.annex a{color:#93c5fd}
+.annex-top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.toggle{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 12px;border-radius:7px;background:var(--ed-raised);border:1px solid var(--ed-line);
+  color:var(--cfs-ink);font-weight:500;cursor:pointer;user-select:none}
+.toggle:hover{border-color:var(--ed-line-strong)}
+.toggle .sw{width:26px;height:14px;border-radius:8px;background:#334058;position:relative;transition:background .15s}
+.toggle .sw::after{content:"";position:absolute;left:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#cfd6e4;transition:left .15s}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.lg{display:flex;gap:10px;padding:10px 12px;border-radius:8px;background:var(--ed-panel);border:1px solid var(--ed-line)}
+.lg b{display:block;font-size:12.5px;margin-bottom:2px}
+.lg p{font-size:12px;line-height:17px}
+.num{width:20px;height:20px;border-radius:50%;background:#e8edf7;color:#0a0d14;font:700 11px/20px var(--font-ui);text-align:center;flex:none}
+.mark-n{position:absolute;z-index:70;opacity:0;transition:opacity .15s;pointer-events:none;box-shadow:0 0 0 3px rgba(10,13,20,.7)}
+.states{display:grid;grid-template-columns:repeat(auto-fill,minmax(318px,1fr));gap:12px}
+.stc{background:var(--ed-panel);border:1px solid var(--ed-line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.stc .cap{padding:9px 12px;border-top:1px solid var(--ed-line);font-size:12px;color:var(--cfs-ink-muted);line-height:17px}
+.stc .cap b{color:var(--cfs-ink);font-weight:600}
+.stc .demo{padding:12px;min-height:120px;position:relative;display:flex;flex-direction:column;gap:8px;justify-content:center}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.sw-i{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:var(--ed-panel);border:1px solid var(--ed-line);font-size:11px}
+.sw-i i{width:22px;height:22px;border-radius:5px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.sw-i span{display:flex;flex-direction:column;line-height:14px}
+.sw-i span em{font-style:normal;color:var(--cfs-ink-faint);font-family:var(--font-mono);font-size:10px}
+@keyframes sheen{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}
+.sheen{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.sheen::after{content:"";position:absolute;top:0;bottom:0;width:45%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.18),transparent);
+  animation:sheen 1.8s linear infinite}
+@media (prefers-reduced-motion:reduce){.sheen::after{animation:none;opacity:0}}
+
+:root{--out-w:236px;--insp-w:344px;--ani-h:206px}
+.topbar{display:flex;align-items:center;gap:8px;padding:0 10px 0 6px;position:relative}
+.tb-left{display:flex;align-items:center;gap:6px;min-width:0;width:250px;flex:none}
+.stepper{display:flex;align-items:center;gap:9px;height:28px;padding:0 10px;border-radius:7px;background:var(--ed-panel);border:1px solid var(--ed-line);white-space:nowrap;flex:none}
+.stepper .dots{display:flex;gap:4px}
+.stepper .dots i{width:6px;height:6px;border-radius:50%;background:#33405a}
+.stepper .dots i.d{background:#4ade80}
+.stepper .dots i.c{background:var(--accent);box-shadow:0 0 0 2px rgba(255,192,0,.25)}
+.stepper span{font-size:11.5px;color:var(--cfs-ink-muted)}.stepper b{color:var(--cfs-ink);font-weight:600}
+.grow{flex:1;min-width:8px}
+.ws{grid-column:2;grid-row:2;display:grid;padding:4px;gap:4px;grid-template-columns:var(--out-w) minmax(0,1fr) var(--insp-w);
+  grid-template-rows:minmax(0,1fr) var(--ani-h);min-height:0;min-width:0}
+.outline{grid-column:1;grid-row:1/3}.board{grid-column:2;grid-row:1}.animatic{grid-column:2;grid-row:2}.inspector{grid-column:3;grid-row:1/3}
+.rail{position:relative}
+
+/* Outline */
+.osec{padding:4px 0 2px}
+.osec-h{display:flex;align-items:center;gap:7px;padding:6px 12px 4px;font-size:10.5px;font-weight:600;color:var(--cfs-ink-muted);text-transform:uppercase;letter-spacing:.06em}
+.osec-h i{width:8px;height:8px;border-radius:2px;flex:none}
+.osec-h span{margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;color:var(--cfs-ink-faint);font-feature-settings:"tnum"}
+.orow{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px 0 12px;position:relative;color:var(--cfs-ink);cursor:default}
+.orow:hover{background:rgba(255,255,255,.04)}
+.orow .th{width:40px;height:22.5px;border-radius:3px;overflow:hidden;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.45);position:relative}
+.orow .th svg{width:100%;height:100%;display:block}
+.orow .nn{font:600 11px/1 var(--font-ui);color:var(--cfs-ink-faint);width:15px;text-align:right;flex:none;font-feature-settings:"tnum"}
+.orow .ot{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.orow .ln{font-size:11px;color:var(--cfs-ink-faint);font-feature-settings:"tnum";flex:none}
+.orow .st{width:14px;display:grid;place-items:center;flex:none}
+.orow.vis{background:rgba(255,255,255,.025)}
+.orow.vis::after{content:"";position:absolute;right:0;top:0;bottom:0;width:2px;background:rgba(232,237,247,.35)}
+.orow.sel{background:var(--ed-raised)}
+.orow.sel::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:0 2px 2px 0;background:var(--accent)}
+.ohr{height:1px;background:var(--ed-line);margin:8px 0}
+.olab{padding:4px 12px 6px;display:flex;align-items:center;gap:6px}
+.cast{display:flex;align-items:center;gap:9px;height:30px;padding:0 12px}
+.cast:hover{background:rgba(255,255,255,.04)}
+.cast .av{width:22px;height:22px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(255,255,255,.12);display:grid;place-items:center;font:700 10px/1 var(--font-ui);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.45)}
+.cast .av.place{border-radius:5px}
+.cast .av svg{width:100%;height:100%;display:block}
+.cast b{font-weight:500;font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cast span{font-size:11px;color:var(--cfs-ink-faint);white-space:nowrap}
+.style{margin:2px 12px 12px;padding:10px;border-radius:8px;background:var(--ed-panel-2);border:1px solid var(--ed-line);display:flex;flex-direction:column;gap:8px}
+.style .sheet{display:grid;grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;gap:2px;height:64px;border-radius:5px;overflow:hidden}
+.style .sheet svg{width:100%;height:100%;display:block}
+.style .sheet svg:first-child{grid-row:1/3}
+.style p{margin:0;font-size:11.5px;line-height:16px;color:var(--cfs-ink-muted)}
+.style a{font-size:11.5px;color:#93c5fd;text-decoration:none}
+
+/* Board */
+.btool{height:36px;flex:none;display:flex;align-items:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--ed-line);background:var(--ed-panel-2);min-width:0}
+.chip .dot{width:6px;height:6px;border-radius:50%}
+.ribbon{flex:none;padding:7px 12px 8px;border-bottom:1px solid var(--ed-line)}
+.rib{position:relative;height:16px}
+.rseg{position:absolute;top:0;bottom:0;border-radius:3px;display:flex;align-items:center;justify-content:center;font:600 9.5px/1 var(--font-ui);color:rgba(255,255,255,.88)}
+.rseg.sel{box-shadow:inset 0 -2px 0 var(--accent)}
+.rwin{position:absolute;top:-4px;bottom:-4px;border:1.5px solid #e8edf7;border-radius:4px;background:rgba(255,255,255,.05)}
+.rdot{position:absolute;top:-3px;right:-2px;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1.5px var(--ed-panel)}
+.rph{position:absolute;top:-4px;bottom:-4px;width:1px;background:var(--accent)}
+.bscroll{flex:1;min-height:0;overflow:auto;padding:0 14px 18px}
+.srow{margin-top:10px}
+.srow-h{display:flex;align-items:center;gap:8px;height:28px;font-size:12px}
+.srow-h i{width:9px;height:9px;border-radius:2px;flex:none}
+.srow-h b{font-weight:600}
+.srow-h span{color:var(--cfs-ink-faint);font-size:11.5px;font-feature-settings:"tnum"}
+.cards{display:flex;align-items:flex-start;container-type:inline-size}
+.card{flex:none;width:calc((100cqw - 108px) / 3);background:var(--ed-panel-2);border:1px solid var(--ed-line);border-radius:8px;position:relative;
+  transition:border-color .12s,transform .12s,box-shadow .12s}
+.card:hover{border-color:#3d4964;transform:translateY(-1px);box-shadow:0 10px 24px rgba(0,0,0,.38)}
+.card.sel{outline:2px solid var(--accent);outline-offset:2px}
+.chead{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 6px;font-size:11.5px;border-bottom:1px solid var(--ed-line)}
+.chead .cn{min-width:20px;height:17px;border-radius:4px;background:var(--ed-raised-hi);color:#fff;font:700 10.5px/17px var(--font-ui);text-align:center;padding:0 4px;flex:none}
+.card.sel .chead .cn{background:var(--accent);color:var(--accent-ink)}
+.chead .ctitle{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.chead .cdur{font-feature-settings:"tnum";color:var(--cfs-ink-muted);font-size:11px;flex:none}
+.chead .ico{color:#cfd6e4;flex:none}
+.cf{position:relative;aspect-ratio:16/9;overflow:hidden;container-type:size;background:#0d0d0d}
+.cf svg.art{position:absolute;inset:0;width:100%;height:100%}
+.cbadge{position:absolute;left:6px;top:6px;min-width:20px;height:18px;padding:0 5px;border-radius:4px;background:rgba(10,13,20,.8);color:#fff;font:700 11px/18px var(--font-ui);text-align:center;z-index:3}
+.card.sel .cbadge{background:var(--accent);color:var(--accent-ink)}
+.clen{position:absolute;right:6px;top:6px;height:18px;padding:0 6px;border-radius:4px;background:rgba(10,13,20,.8);color:#fff;font:600 10.5px/18px var(--font-ui);
+  font-feature-settings:"tnum";z-index:3;display:flex;align-items:center;gap:4px}
+.cmot{position:absolute;left:6px;bottom:6px;height:18px;padding:0 6px;border-radius:4px;background:rgba(10,13,20,.8);color:#e8edf7;font:500 10.5px/18px var(--font-ui);
+  display:flex;align-items:center;gap:4px;z-index:3}
+.cmot .ico{width:11px;height:11px}
+.cst{position:absolute;right:6px;top:6px;z-index:3}
+.cst .pill{background:rgba(10,13,20,.82)}
+.cbody{padding:8px 10px 9px;display:flex;flex-direction:column;gap:6px}
+.shot{display:flex;gap:4px;overflow:hidden}
+.shot span{height:18px;padding:0 6px;border-radius:4px;background:var(--ed-raised);border:1px solid var(--ed-line);font-size:10.5px;color:var(--cfs-ink-muted);white-space:nowrap;display:flex;align-items:center;flex:none}
+.narr{font-size:12px;line-height:17px;color:var(--cfs-ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
+.pline{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--cfs-ink-muted);white-space:nowrap;overflow:hidden;min-height:15px}
+.pline i{width:7px;height:7px;border-radius:2px;background:var(--lane-popup);flex:none}
+.pline em{font-style:normal;color:var(--cfs-ink-faint);margin-left:auto}
+.cfoot{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--cfs-ink-faint);min-height:16px}
+.avs{display:flex;padding-left:2px}
+.avs i{width:16px;height:16px;border-radius:50%;margin-left:-4px;box-shadow:0 0 0 1.5px var(--ed-panel-2);display:grid;place-items:center;font:700 8px/1 var(--font-ui);font-style:normal;color:#fff}
+.avs i.place{border-radius:4px}
+.avs i:first-child{margin-left:0}
+.avs i svg{width:100%;height:100%;display:block}
+.cfoot .k{display:flex;align-items:center;gap:3px}
+.cfoot .k .ico{width:12px;height:12px}
+.hov{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity .12s;z-index:4;background:linear-gradient(180deg,rgba(0,0,0,.28),rgba(0,0,0,.04) 40%,rgba(0,0,0,.28))}
+.card:hover .hov{opacity:1}
+.hov .pb{width:34px;height:34px;border-radius:50%;background:rgba(232,237,247,.96);color:#0a0d14;display:grid;place-items:center}
+.hov .qa{position:absolute;right:6px;top:6px;display:flex;gap:4px}
+.card.sel .chead{background:rgba(255,192,0,.06)}
+.hov .qa span{width:24px;height:22px;border-radius:5px;background:rgba(10,13,20,.88);color:#e8edf7;display:grid;place-items:center}
+.card:hover .cst{opacity:0}
+.card.fail::before,.card.warn::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;border-radius:8px 8px 0 0;z-index:6}
+.card.fail::before{background:#ef4444}.card.warn::before{background:#f59e0b}
+.cf .tint{position:absolute;inset:0;background:rgba(239,68,68,.12);z-index:1}
+.gen .cf svg.art{filter:saturate(.6) brightness(.7)}
+.gprog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.15);z-index:3}
+.gprog i{display:block;height:100%;width:38%;background:#e8edf7}
+.spin{width:11px;height:11px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spin 1s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.failbox{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.conn{flex:none;width:40px;position:relative;margin-top:27px;height:calc((100cqw - 108px) / 3 * .5625)}
+.conn::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#3a4660}
+.conn .tcx{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;background:var(--ed-panel);
+  border:1px solid #3a4660;display:grid;place-items:center;color:var(--cfs-ink-muted);z-index:2}
+.conn .tcx:hover{border-color:#6a7a9a;color:var(--cfs-ink)}
+.conn .tcx .ico{width:13px;height:13px}
+.conn .td{position:absolute;left:50%;top:calc(50% + 17px);transform:translateX(-50%);font:500 10px/1 var(--font-ui);color:var(--cfs-ink-faint);white-space:nowrap}
+.conn.stub{width:28px}
+.conn.stub::before{right:auto;width:16px}
+.conn.stub .tcx{left:16px}
+.conn.stub .td{left:16px}
+.conn .rep{position:absolute;right:4px;top:calc(50% - 15px);width:6px;height:6px;border-radius:50%;background:#f59e0b}
+
+/* Animatic */
+.ani{flex:1;min-height:0;display:flex;gap:12px;padding:8px 12px 10px}
+.ani .mon{height:100%;aspect-ratio:16/9;border-radius:4px;overflow:hidden;background:#000;position:relative;flex:none;box-shadow:0 0 0 1px #000}
+.ani .mon .frame{position:absolute;inset:0}
+.mtl{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;gap:3px}
+.mtl .mr{position:relative;height:14px;font:500 9.5px/14px var(--font-mono);color:var(--cfs-ink-faint)}
+.mtl .mr span{position:absolute;top:0}
+.mtl .ml{position:relative;border-radius:3px;overflow:hidden;background:var(--ed-track)}
+.mtl .lab{position:absolute;left:-1px;top:0}
+.msc{position:absolute;top:0;bottom:0;border-radius:2px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.55)}
+.msc svg{position:absolute;inset:0;width:100%;height:100%}
+.msc b{position:absolute;left:3px;top:2px;font:700 8.5px/1 var(--font-ui);color:#fff;text-shadow:0 1px 2px #000}
+.msc.sel{box-shadow:inset 0 0 0 2px var(--accent)}
+.msc.fail::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:#ef4444;z-index:2}
+.mpop{position:absolute;top:1px;bottom:1px;border-radius:2px;background:var(--lane-popup)}
+.mcap{position:absolute;top:1px;bottom:1px;border-radius:1px;background:var(--lane-caption)}
+.mtl .mph{position:absolute;top:14px;bottom:0;width:2px;background:var(--accent);box-shadow:0 0 0 1px rgba(0,0,0,.5);z-index:5}
+.mtl svg.w{position:absolute;inset:0;width:100%;height:100%}
+
+/* Inspector (storyboard) */
+.inspector .isec-h b{font-size:12px;font-weight:600}
+.inspector .isec-h .ico{color:var(--cfs-ink-faint)}
+.sent{display:grid;grid-template-columns:22px 1fr;gap:6px;font-size:12px;line-height:17px}
+.sent .sn{font:600 10.5px/17px var(--font-mono);color:var(--cfs-ink-faint)}
+.sent .tm{display:block;font:500 10.5px/14px var(--font-mono);color:var(--cfs-ink-faint);margin-top:2px}
+.splitline{display:flex;align-items:center;gap:6px;margin:0 0 0 28px;color:var(--cfs-ink-faint);font-size:10.5px}
+.splitline::before,.splitline::after{content:"";height:1px;flex:1;border-top:1px dashed #3a4660}
+.splitline span{padding:2px 7px;border-radius:999px;border:1px solid #3a4660;background:var(--ed-panel)}
+.splitline span:hover{color:var(--cfs-ink);border-color:#6a7a9a}
+.bigpic{position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;container-type:size;box-shadow:0 0 0 1px var(--ed-line)}
+.bigpic svg.art{position:absolute;inset:0;width:100%;height:100%}
+.bigpic .ov{position:absolute;left:8px;bottom:8px;display:flex;gap:6px}
+.bigpic .ov .pill{background:rgba(10,13,20,.85)}
+.bigpic .tries{position:absolute;right:8px;bottom:8px;font-size:10.5px;color:#e8edf7;background:rgba(10,13,20,.85);padding:2px 7px;border-radius:999px}
+.prefix{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:4px;background:rgba(96,165,250,.12);color:#93c5fd;font-size:10.5px;font-weight:500;margin-right:4px}
+.frow{display:grid;grid-template-columns:52px 1fr;gap:6px;align-items:center}
+.frow .chips{display:flex;gap:4px;flex-wrap:wrap}
+.chip.sm{height:20px;padding:0 7px;font-size:10.5px}
+.tagav{width:14px;height:14px;border-radius:50%;display:grid;place-items:center;flex:none;font:700 7.5px/1 var(--font-ui);color:#fff}
+.tagav.place{border-radius:3px}
+.tagav svg{width:100%;height:100%;display:block}
+.refs{display:flex;gap:6px}
+.refs .r{width:64px;aspect-ratio:16/9;border-radius:4px;overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--ed-line)}
+.refs .r svg{width:100%;height:100%;display:block}
+.refs .r.add{display:grid;place-items:center;border:1px dashed #3a4660;box-shadow:none;color:var(--cfs-ink-faint)}
+.counter{font-size:11px;color:var(--cfs-ink-faint);margin-left:auto;font-feature-settings:"tnum"}
+.small{font-size:11px}
+.field.big{height:28px;font-size:12.5px}
+
+@media (max-width:1360px){
+  :root{--out-w:56px;--insp-w:320px}
+  .outline .osec-h,.outline .orow .ot,.outline .orow .ln,.outline .olab,.outline .cast,.outline .style,.outline .ohr,.outline .panel-h .faint{display:none}
+  .outline .orow{padding:0 8px;justify-content:center}.outline .orow .th{width:34px;height:19px}.outline .orow .nn,.outline .orow .st{display:none}
+  .hide-md{display:none!important}
+}
+@media (max-width:1240px){.hide-sm{display:none!important}.topbar .seg>span{padding:0 8px}.tb-left{width:210px}}
+
+/* Annex helpers */
+.mini-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;container-type:inline-size}
+.mini-cards .card{width:auto}.mc-cell{display:flex;flex-direction:column}
+.pop-demo{position:relative;width:340px;padding:12px;border-radius:9px;background:#161b26;border:1px solid var(--ed-line-strong);box-shadow:0 14px 34px rgba(0,0,0,.5)}
+.tg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tg .t{display:flex;flex-direction:column;gap:3px;font-size:10.5px}
+.tg .t i{display:block;aspect-ratio:16/9;border-radius:4px;outline:1px solid var(--ed-line)}
+.tg .t.on i{outline:2px solid var(--accent);outline-offset:1px}
+.slider{position:relative;height:4px;border-radius:2px;background:#2a3347;margin:10px 0 4px}
+.slider i{position:absolute;left:0;top:0;bottom:0;width:26%;border-radius:2px;background:#e8edf7}
+.slider b{position:absolute;left:26%;top:50%;width:12px;height:12px;border-radius:50%;background:#e8edf7;transform:translate(-50%,-50%)}
+.slider em{position:absolute;left:80%;top:-5px;bottom:-5px;width:2px;background:#f59e0b}
+#show-numbers:checked~.screen .mark-n{opacity:1}#show-numbers:checked~.annex label[for=show-numbers] .sw{background:#e8edf7}#show-numbers:checked~.annex label[for=show-numbers] .sw::after{left:14px;background:#0a0d14}</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<radialGradient id="vig" cx="50%" cy="50%" r="72%"><stop offset="58%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".58"/></radialGradient>
+<filter id="b1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation=".7"/></filter>
+<filter id="b2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.5"/></filter>
+<filter id="b4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+<filter id="b8" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="6.5"/></filter>
+<linearGradient id="a1sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#121d35"/><stop offset=".55" stop-color="#2f4466"/><stop offset="1" stop-color="#53627c"/></linearGradient>
+<radialGradient id="a1win" cx="50%" cy="55%" r="70%"><stop offset="0" stop-color="#fff0c4"/><stop offset=".45" stop-color="#ffbe6b"/><stop offset="1" stop-color="#c8662c"/></radialGradient>
+<linearGradient id="a1street" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2130"/><stop offset="1" stop-color="#0b0e15"/></linearGradient>
+<linearGradient id="a2bg" x1="0" y1="0" x2="1" y2=".4"><stop offset="0" stop-color="#2a1c14"/><stop offset=".6" stop-color="#7a4f31"/><stop offset="1" stop-color="#b47a48"/></linearGradient>
+<linearGradient id="a3bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3a2a1c"/><stop offset=".55" stop-color="#8e6a43"/><stop offset="1" stop-color="#c79a62"/></linearGradient>
+<radialGradient id="a3light" cx="25%" cy="20%" r="80%"><stop offset="0" stop-color="#ffe3b0" stop-opacity=".55"/><stop offset="1" stop-color="#ffe3b0" stop-opacity="0"/></radialGradient>
+<linearGradient id="a4bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a170c"/><stop offset="1" stop-color="#7d4a26"/></linearGradient>
+<linearGradient id="a5bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d1828"/><stop offset="1" stop-color="#3a5674"/></linearGradient>
+<linearGradient id="a5glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a7b9e"/><stop offset="1" stop-color="#a6bfd8"/></linearGradient>
+<linearGradient id="a6floor" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#2b3a36"/><stop offset="1" stop-color="#58766d"/></linearGradient>
+<linearGradient id="a7wall" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6b4429"/><stop offset=".5" stop-color="#4a2e1d"/><stop offset="1" stop-color="#24160e"/></linearGradient>
+<radialGradient id="a7win" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="#fff6dc"/><stop offset=".5" stop-color="#ffd38c"/><stop offset="1" stop-color="#e59a4e"/></radialGradient>
+<linearGradient id="a7bed" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2e2cb"/><stop offset="1" stop-color="#b8957a"/></linearGradient>
+<linearGradient id="a8bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b352b"/><stop offset=".6" stop-color="#8d7b5c"/><stop offset="1" stop-color="#b9a47c"/></linearGradient>
+<radialGradient id="a9bg" cx="52%" cy="48%" r="65%"><stop offset="0" stop-color="#d6904a"/><stop offset=".55" stop-color="#6e4222"/><stop offset="1" stop-color="#1d120a"/></radialGradient>
+<linearGradient id="a10bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#262a31"/><stop offset="1" stop-color="#939caa"/></linearGradient>
+<linearGradient id="a11sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d2145"/><stop offset=".55" stop-color="#7a4f6a"/><stop offset="1" stop-color="#e3965a"/></linearGradient>
+<linearGradient id="a12sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d9fc4"/><stop offset=".6" stop-color="#e8d2a8"/><stop offset="1" stop-color="#f4dcae"/></linearGradient>
+<symbol id="art1" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a1sky)"/>
+<path d="M0 46h12v-9h8v6h10v-14h9v18h4V62H0z" fill="#18213a"/>
+<path d="M124 62V30h8v-6h10v10h8v-8h10v36z" fill="#161e33"/>
+<rect x="40" y="25" width="84" height="41" fill="#211915"/>
+<path d="M38 25h88l-4 6H42z" fill="#5c2c20"/>
+<rect x="47" y="33" width="47" height="25" fill="url(#a1win)"/>
+<rect x="70" y="33" width="1.2" height="25" fill="#5a3a22" opacity=".55"/>
+<rect x="100" y="34" width="16" height="32" fill="#2b2019"/>
+<rect x="102" y="36" width="12" height="20" fill="#f0a656" opacity=".55"/>
+<circle cx="71" cy="45" r="30" fill="#ffb862" opacity=".2" filter="url(#b8)"/>
+<rect y="66" width="160" height="24" fill="url(#a1street)"/>
+<ellipse cx="71" cy="72" rx="24" ry="3" fill="#f2a65a" opacity=".28" filter="url(#b2)"/>
+<path d="M20 24v42" stroke="#0b0e15" stroke-width="1.3"/>
+<circle cx="20" cy="23" r="2.1" fill="#ffe7bb"/><circle cx="20" cy="23" r="9" fill="#ffd38a" opacity=".22" filter="url(#b4)"/>
+<g transform="translate(96 46)"><path d="M-3.2 3.5Q0 1 3.4 3.5L4.2 17H-4z" fill="#2c4d86"/><circle cx="0" cy="0" r="2.5" fill="#d2cbc2"/><path d="M-2 17v4M2 17v4" stroke="#141820" stroke-width="1.2"/></g>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art2" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a2bg)"/>
+<circle cx="40" cy="6" r="6" fill="#ffe1a8" opacity=".45" filter="url(#b4)"/><circle cx="90" cy="4" r="7" fill="#ffe1a8" opacity=".4" filter="url(#b4)"/><circle cx="138" cy="8" r="6" fill="#ffe1a8" opacity=".4" filter="url(#b4)"/>
+<g filter="url(#b4)" opacity=".7"><rect x="58" y="16" width="28" height="30" fill="#5d4a35"/><rect x="92" y="14" width="30" height="32" fill="#4c6656"/><rect x="128" y="18" width="32" height="28" fill="#7a5b3c"/></g>
+<rect y="58" width="160" height="32" fill="#1c130d"/>
+<rect x="88" y="43" width="22" height="15" rx="2" fill="#2a2622"/><rect x="91" y="45" width="15" height="6" fill="#7fb3a0" opacity=".55"/>
+<g transform="translate(124 40)"><path d="M-7 8Q0 2 7 8L9 30H-9z" fill="#2e4e86"/><circle cx="0" cy="1" r="5" fill="#cbc3ba"/><circle cx="1" cy="2.5" r="3.4" fill="#9c7a63"/></g>
+<path d="M0 90V36Q26 26 50 46L60 90z" fill="#120c08" filter="url(#b2)"/>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art3" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a3bg)"/>
+<g stroke="#2a1d12" stroke-opacity=".18" stroke-width=".5"><path d="M0 20q80-6 160 4"/><path d="M0 40q80-6 160 4"/><path d="M0 60q80-6 160 4"/><path d="M0 80q80-6 160 4"/></g>
+<g transform="rotate(-6 74 46)"><rect x="30" y="16" width="88" height="60" rx="2" fill="#efe4cc"/>
+<g stroke="#3a3530" stroke-width="1" stroke-linecap="round">
+<path d="M40 28v9M44 28v9M48 28v9M52 28v9M38 35l16-6"/><path d="M60 28v9M64 28v9M68 28v9M72 28v9M58 35l16-6"/><path d="M80 28v9M84 28v9M88 28v9M92 28v9M78 35l16-6"/>
+<path d="M40 46v9M44 46v9M48 46v9M52 46v9M38 53l16-6"/><path d="M60 46v9M64 46v9M68 46v9M72 46v9M58 53l16-6"/><path d="M80 46v9M84 46v9"/></g></g>
+<g transform="rotate(28 130 40)"><rect x="104" y="38" width="50" height="3.6" fill="#e2a93b"/><path d="M104 38l-5 1.8 5 1.8z" fill="#3a2a1a"/></g>
+<ellipse cx="140" cy="72" rx="22" ry="15" fill="#c79473" opacity=".9" filter="url(#b4)"/>
+<rect width="160" height="90" fill="url(#a3light)"/>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art4" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a4bg)"/>
+<g filter="url(#b4)"><circle cx="20" cy="18" r="7" fill="#ffb35c" opacity=".35"/><circle cx="52" cy="10" r="5" fill="#ff8f4a" opacity=".3"/><circle cx="130" cy="14" r="8" fill="#ffc77a" opacity=".3"/><circle cx="150" cy="34" r="5" fill="#ff9a50" opacity=".25"/></g>
+<rect y="58" width="160" height="32" fill="#16110d"/><path d="M0 64h160M0 74h160M0 84h160" stroke="#2a221b" stroke-width=".8"/>
+<rect x="58" y="24" width="34" height="40" rx="6" fill="#d9eef2" opacity=".18" stroke="#e8f4f6" stroke-opacity=".5" stroke-width=".8"/>
+<rect x="60" y="20" width="30" height="6" rx="2" fill="#8c8f93"/>
+<g opacity=".95"><circle cx="65" cy="58" r="3.4" fill="#b87333"/><circle cx="72" cy="58" r="3.4" fill="#d9944f"/><circle cx="79" cy="58" r="3.4" fill="#8e5527"/><circle cx="86" cy="58" r="3.2" fill="#c47e3e"/>
+<circle cx="68" cy="52" r="3.4" fill="#d08a4c"/><circle cx="75" cy="52" r="3.4" fill="#a8652f"/><circle cx="82" cy="52" r="3.4" fill="#d9944f"/><circle cx="70" cy="46" r="3.3" fill="#b87333"/><circle cx="78" cy="46" r="3.3" fill="#e0a05c"/><circle cx="85" cy="47" r="3" fill="#9a5a2a"/></g>
+<rect x="97" y="44" width="46" height="18" rx="9" fill="#c98b4e"/><path d="M104 47q5-3 9 0M116 46q5-3 9 0M128 47q5-3 9 0" stroke="#e6b37a" stroke-width="1.2" fill="none"/>
+<ellipse cx="8" cy="66" rx="12" ry="9" fill="#d4a07c" opacity=".85" filter="url(#b2)"/>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art5" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a5bg)"/>
+<rect x="50" y="14" width="60" height="70" fill="#0a111b"/>
+<rect x="54" y="18" width="25" height="62" fill="url(#a5glass)" opacity=".7"/><rect x="81" y="18" width="25" height="62" fill="url(#a5glass)" opacity=".7"/>
+<rect x="76" y="44" width="1.5" height="9" fill="#cfd8e2"/><rect x="83" y="44" width="1.5" height="9" fill="#cfd8e2"/>
+<circle cx="80" cy="40" r="30" fill="#9ec2e6" opacity=".14" filter="url(#b8)"/>
+<path d="M50 84h60l14 6H36z" fill="#6f8fb0" opacity=".18"/>
+<circle cx="134" cy="22" r="8" fill="#dde6f0"/><path d="M134 22v-5M134 22v6" stroke="#1b2533" stroke-width="1.1" stroke-linecap="round"/>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art6" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="#18211f"/>
+<path d="M0 90h160L102 52H58z" fill="url(#a6floor)"/>
+<path d="M0 0h160l-58 30H58z" fill="#1b2624"/>
+<path d="M0 0l58 30v22L0 90z" fill="#2e413d"/><path d="M160 0l-58 30v22l58 38z" fill="#26372f"/>
+<g fill="#ddf5ec"><path d="M70 6h20l-3 4H73z" opacity=".85"/><path d="M74 15h12l-2 3h-8z" opacity=".75"/><path d="M76 21h8l-1 2h-6z" opacity=".65"/></g>
+<rect x="58" y="30" width="44" height="22" fill="#bfd8cf" opacity=".42"/>
+<rect x="18" y="34" width="10" height="34" fill="#1e2b28" transform="skewY(18)"/><rect x="132" y="80" width="10" height="34" fill="#1c2824" transform="skewY(-18)"/>
+<g transform="translate(84 40)"><path d="M-4 6Q0 3 4 6L5 22H-5z" fill="#0c1110"/><circle cx="0" cy="2" r="2.8" fill="#0c1110"/><path d="M-3 22l-1 6M3 22l1 6" stroke="#0c1110" stroke-width="1.6"/></g>
+<circle cx="80" cy="16" r="22" fill="#cfeee3" opacity=".12" filter="url(#b8)"/>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art7" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a7wall)"/>
+<rect x="8" y="8" width="46" height="52" fill="url(#a7win)"/>
+<rect x="30.4" y="8" width="1.6" height="52" fill="#6b4630" opacity=".65"/><rect x="8" y="33" width="46" height="1.6" fill="#6b4630" opacity=".65"/>
+<rect x="6" y="6" width="50" height="56" fill="none" stroke="#3a2416" stroke-width="2"/>
+<polygon points="54,10 54,60 118,90 160,90 160,74" fill="#ffd08a" opacity=".11" filter="url(#b2)"/>
+<circle cx="31" cy="33" r="36" fill="#ffc77a" opacity=".26" filter="url(#b8)"/>
+<g filter="url(#b1)"><rect x="40" y="55" width="94" height="24" rx="4" fill="url(#a7bed)"/>
+<rect x="40" y="72" width="94" height="18" fill="#9c7a60" opacity=".85"/>
+<rect x="46" y="48" width="32" height="13" rx="6" fill="#f6ead8"/>
+<path d="M48 74Q50 60 58 56Q64 53 70 55Q80 58 83 66L84 74z" fill="#7c9ab8"/>
+<ellipse cx="64" cy="45" rx="6.6" ry="7.6" fill="#8c6650"/>
+<path d="M57.6 44q0-8.6 7.2-8.6 6.6 0 7 7-3-3.6-7.2-3.6-4.4 0-7 5.2z" fill="#ddd6ce"/>
+<ellipse cx="66.5" cy="47" rx="2" ry="2.6" fill="#b88c70" opacity=".6"/></g>
+<g filter="url(#b4)"><ellipse cx="137" cy="40" rx="11" ry="13" fill="#1e130d"/><path d="M110 90Q116 56 137 54Q156 56 162 70V90z" fill="#24170f"/></g>
+<g fill="#ffe7b8"><circle cx="70" cy="20" r=".9" opacity=".7"/><circle cx="84" cy="28" r=".7" opacity=".6"/><circle cx="96" cy="16" r="1.1" opacity=".5"/><circle cx="60" cy="30" r=".6" opacity=".6"/></g>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art8" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a8bg)"/>
+<rect width="160" height="90" fill="#4f7a78" opacity=".16"/>
+<rect x="16" y="38" width="32" height="22" rx="2" fill="#4b4136"/><g fill="#7d6d58"><rect x="20" y="44" width="5" height="4"/><rect x="27" y="44" width="5" height="4"/><rect x="34" y="44" width="5" height="4"/><rect x="20" y="50" width="5" height="4"/><rect x="27" y="50" width="5" height="4"/></g>
+<rect y="60" width="160" height="30" fill="#2c251e"/>
+<g transform="translate(76 34)"><path d="M-9 10Q0 3 9 10L11 30H-11z" fill="#8c4a3e"/><circle cx="0" cy="2" r="6" fill="#c9a487"/><path d="M-6 0q1-7 7-7 6 0 6 7-3-3-6-3t-7 3z" fill="#3b2a20"/>
+<circle cx="-10" cy="13" r="4.2" fill="#d9b597"/></g>
+<g transform="translate(124 30)"><path d="M-10 12Q0 5 10 12L12 34H-12z" fill="#5e605e"/><circle cx="0" cy="4" r="5.6" fill="#b89478"/><rect x="-8" y="-3.4" width="16" height="2.2" rx="1" fill="#6f716e"/><rect x="-5" y="-8" width="10" height="5.5" rx="1.5" fill="#6f716e"/></g>
+<circle cx="160" cy="20" r="22" fill="#ff9a50" opacity=".22" filter="url(#b8)"/>
+<rect width="160" height="90" fill="url(#vig)"/><rect width="160" height="90" fill="url(#vig)" opacity=".4"/>
+</symbol><symbol id="art9" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a9bg)"/>
+<circle cx="24" cy="10" r="20" fill="#ffe0a8" opacity=".32" filter="url(#b8)"/>
+<g transform="rotate(5 80 48)"><rect x="58" y="18" width="44" height="58" rx="1" fill="#f3e8d3"/>
+<g stroke="#a8a090" stroke-width="1" stroke-linecap="round" opacity=".7"><path d="M64 26h20M64 31h30M64 36h24M64 41h28M64 46h18M64 54h32M64 59h22"/></g></g>
+<g filter="url(#b1)"><ellipse cx="54" cy="64" rx="14" ry="9" fill="#c99674" transform="rotate(-25 54 64)"/><ellipse cx="108" cy="62" rx="14" ry="9" fill="#c38e6c" transform="rotate(28 108 62)"/>
+<path d="M60 56q4-6 8-2M98 54q4-5 8 0" stroke="#a87458" stroke-width="2" fill="none"/></g>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art10" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a10bg)"/>
+<rect x="16" y="32" width="50" height="36" rx="3" fill="#1e2228"/><rect x="21" y="36" width="24" height="9" rx="1" fill="#3f6b5c"/>
+<g fill="#2e333b"><rect x="21" y="49" width="6" height="5"/><rect x="29" y="49" width="6" height="5"/><rect x="37" y="49" width="6" height="5"/><rect x="21" y="56" width="6" height="5"/><rect x="29" y="56" width="6" height="5"/></g>
+<rect y="68" width="160" height="22" fill="#1b1e24"/>
+<g transform="rotate(-3 108 46)"><rect x="84" y="16" width="48" height="58" fill="#f4f1e8"/>
+<rect x="100" y="12" width="16" height="7" fill="#e8e2c8" opacity=".75"/>
+<g stroke="#3f4754" stroke-width="1.15" fill="none" stroke-linecap="round"><path d="M90 26c3-2 5 2 8 0s5-2 8 0 4 2 7 0 4-1 6 0"/><path d="M90 33c3-2 5 2 8 0s6-2 9 0 4 1 7-1"/><path d="M90 40c4-2 6 2 9 0s5-2 8 0 5 2 8 0"/><path d="M90 47c3-2 6 2 9 0s4-1 7 0"/><path d="M90 56c3-1 5 1 8 0s5-1 7 0 4 1 6 0"/><path d="M90 63c4-2 6 1 9 0"/></g></g>
+<circle cx="150" cy="20" r="26" fill="#f2f4f7" opacity=".22" filter="url(#b8)"/>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art11" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a11sky)"/>
+<rect x="100" y="30" width="60" height="44" fill="#211819"/><rect x="108" y="38" width="40" height="22" fill="#ffc77e"/><circle cx="128" cy="49" r="24" fill="#ffb862" opacity=".22" filter="url(#b8)"/>
+<rect y="74" width="160" height="16" fill="#0f1018"/>
+<g fill="#12131f">
+<path d="M8 76v-14q3-3 6 0v14z"/><circle cx="11" cy="59" r="2.6"/><path d="M19 76v-16q3-3 6 0v16z"/><circle cx="22" cy="57" r="2.8"/><path d="M30 76v-12q2.5-2.5 5 0v12z"/><circle cx="32.5" cy="61.5" r="2.2"/>
+<path d="M40 76v-15q3-3 6 0v15z"/><circle cx="43" cy="58" r="2.7"/><path d="M51 76v-17q3-3 6 0v17z"/><circle cx="54" cy="56" r="2.9"/><path d="M62 76v-14q3-3 6 0v14z"/><circle cx="65" cy="59" r="2.6"/>
+<path d="M73 76v-16q3-3 6 0v16z"/><circle cx="76" cy="57" r="2.8"/><path d="M84 76v-13q2.5-2.5 5 0v13z"/><circle cx="86.5" cy="60.5" r="2.3"/><path d="M93 76v-16q3-3 6 0v16z"/><circle cx="96" cy="57" r="2.8"/></g>
+<g stroke="#f0a35e" stroke-opacity=".35" stroke-width=".6" fill="none"><path d="M99 60v16M90 64v12M80 62v14"/></g>
+<rect width="160" height="90" fill="url(#vig)"/>
+</symbol><symbol id="art12" viewBox="0 0 160 90">
+<rect width="160" height="90" fill="url(#a12sky)"/>
+<circle cx="140" cy="10" r="26" fill="#fff2d0" opacity=".55" filter="url(#b8)"/>
+<rect x="28" y="24" width="104" height="52" fill="#e9dcc4"/><rect x="28" y="20" width="104" height="6" fill="#b5523b"/>
+<rect x="36" y="32" width="30" height="20" fill="#bfd3e6"/><rect x="96" y="32" width="30" height="20" fill="#bfd3e6"/>
+<rect x="72" y="40" width="18" height="36" fill="#8c5a35"/>
+<rect y="76" width="160" height="14" fill="#cdb894"/>
+<g filter="url(#b2)" fill="#5b6475" opacity=".55"><path d="M104 76v-14q3-3 6 0v14z"/><circle cx="107" cy="59" r="2.6"/><path d="M114 76v-16q3-3 6 0v16z"/><circle cx="117" cy="57" r="2.8"/><path d="M124 76v-13q3-3 6 0v13z"/><circle cx="127" cy="60" r="2.5"/></g>
+<g transform="translate(62 52)"><path d="M-5 5Q0 2 5 5L6 24H-6z" fill="#2c4c80"/><circle cx="0" cy="0" r="3.4" fill="#cfc8c0"/><path d="M-3 24v3M3 24v3" stroke="#1d2433" stroke-width="1.3"/></g>
+<rect width="160" height="90" fill="url(#vig)" opacity=".7"/>
+</symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15a.6.6 0 0 0 .9.5l12-7.5a.6.6 0 0 0 0-1L7.9 4a.6.6 0 0 0-.9.5z" fill="currentColor" stroke="none"/></symbol><symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/></symbol><symbol id="i-to-start" viewBox="0 0 24 24"><path d="M19 19 9 12l10-7z" fill="currentColor" stroke="none"/><path d="M5 5v14"/></symbol><symbol id="i-to-end" viewBox="0 0 24 24"><path d="m5 5 10 7-10 7z" fill="currentColor" stroke="none"/><path d="M19 5v14"/></symbol><symbol id="i-prev-cut" viewBox="0 0 24 24"><path d="M18 17 12 12l6-5"/><path d="M11 17 5 12l6-5"/></symbol><symbol id="i-next-cut" viewBox="0 0 24 24"><path d="m6 17 6-5-6-5"/><path d="m13 17 6-5-6-5"/></symbol><symbol id="i-frame-back" viewBox="0 0 24 24"><path d="M7 6v12"/><path d="m18 7-7 5 7 5z" fill="currentColor"/></symbol><symbol id="i-frame-fwd" viewBox="0 0 24 24"><path d="M17 6v12"/><path d="m6 7 7 5-7 5z" fill="currentColor"/></symbol><symbol id="i-loop" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol><symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></symbol><symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></symbol><symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol><symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol><symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol><symbol id="i-chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol><symbol id="i-chev-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol><symbol id="i-chev-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol><symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></symbol><symbol id="i-cursor" viewBox="0 0 24 24"><path d="M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.12 1.58a2 2 0 0 0-1.44 1.43l-1.58 6.13a.5.5 0 0 1-.95.06z"/></symbol><symbol id="i-blade" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="m8 6 4-3 4 3"/><path d="m8 18 4 3 4-3"/></symbol><symbol id="i-merge" viewBox="0 0 24 24"><path d="M8 6h3a4 4 0 0 1 4 4v8"/><path d="m11 15 4 4 4-4"/><path d="M4 6h1"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol><symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></symbol><symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></symbol><symbol id="i-magnet" viewBox="0 0 24 24"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol><symbol id="i-skim" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><path d="M12 9v6"/></symbol><symbol id="i-follow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/><path d="M5 5v14"/></symbol><symbol id="i-zoom-in" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></symbol><symbol id="i-zoom-out" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/></symbol><symbol id="i-fit" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol><symbol id="i-unlock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-.9"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></symbol><symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol><symbol id="i-popup" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol><symbol id="i-cc" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></symbol><symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 7.5h4M3 12h18M3 16.5h4M17 7.5h4M17 16.5h4"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.13-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.13a.5.5 0 0 1 .96 0l1.58 6.13a2 2 0 0 0 1.44 1.44l6.13 1.58a.5.5 0 0 1 0 .96l-6.13 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.13a.5.5 0 0 1-.96 0z"/><path d="M20 3v4M22 5h-4"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol><symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol><symbol id="i-swap" viewBox="0 0 24 24"><path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol><symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol><symbol id="i-workflow" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect x="13" y="13" width="8" height="8" rx="2"/></symbol><symbol id="i-clapper" viewBox="0 0 24 24"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol><symbol id="i-table" viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></symbol><symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol><symbol id="i-move" viewBox="0 0 24 24"><path d="m5 9-3 3 3 3"/><path d="m9 5 3-3 3 3"/><path d="m15 19-3 3-3-3"/><path d="m19 9 3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></symbol><symbol id="i-blend" viewBox="0 0 24 24"><circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/></symbol><symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="8" width="10" height="8" rx="1"/></symbol><symbol id="i-boxes" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1.5"/><rect x="7.5" y="8" width="9" height="8" rx="1" stroke-dasharray="2.2 2"/></symbol><symbol id="i-compare" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/><path d="m8 10-2 2 2 2"/><path d="m16 10 2 2-2 2"/></symbol><symbol id="i-share" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol><symbol id="i-render" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></symbol><symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol><symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol><symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></symbol><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></symbol><symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z"/></symbol><symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></symbol><symbol id="i-note" viewBox="0 0 24 24"><path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5z"/><path d="M15 3v6h6"/></symbol><symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol><symbol id="i-wand" viewBox="0 0 24 24"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/></symbol><symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></symbol><symbol id="i-split-v" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M3 12h4"/><path d="M17 12h4"/></symbol><symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></symbol></defs></svg>
+<input type="checkbox" id="show-numbers" class="state" aria-label="Show region numbers">
+<div class="screen">
+
+<nav class="rail" aria-label="App">
+  <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="CashCow Studio"><defs><linearGradient id="pm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#16223d"/><stop offset="1" stop-color="#0B1220"/></linearGradient></defs><rect x="2" y="2" width="60" height="60" rx="14" fill="url(#pm)"/><rect x="2" y="2" width="60" height="60" rx="14" fill="none" stroke="#FFC000" stroke-width="3"/><path d="M25 19 L45 32 L25 45 Z" fill="#FFC000"/></svg>
+  <a class="tip on" data-tip="Automation" href="#"><svg class="ico s18" aria-hidden="true"><use href="#i-workflow"/></svg><span class="cnt">2</span></a>
+  <a class="tip" data-tip="Editing" href="#"><svg class="ico s18" aria-hidden="true"><use href="#i-clapper"/></svg></a>
+  <a class="tip" data-tip="Master Sheet" href="#"><svg class="ico s18" aria-hidden="true"><use href="#i-table"/></svg></a>
+  <a class="tip" data-tip="Settings" href="#"><svg class="ico s18" aria-hidden="true"><use href="#i-settings"/></svg></a>
+  <span class="spacer"></span>
+  <span class="avatar tip" data-tip="Imran (editor), laptop KL-07">IM</span>
+  <span class="num mark-n" style="left:26px;top:58px">1</span>
+</nav>
+
+<header class="topbar">
+  <div class="tb-left">
+    <span class="btn ghost icon tip below" data-tip="Back to the project"><svg class="ico " aria-hidden="true"><use href="#i-chev-left"/></svg></span>
+    <div class="tb-title"><b>Why she paid for strangers <svg class="ico s12" aria-hidden="true"><use href="#i-chev-down"/></svg></b><span>Kind Ledger &middot; Long video &middot; 16:9</span></div>
+  </div>
+  <div class="stepper tip below" data-tip="Script, storyboard, voice and pictures are done or waiting; edit and export come next"><div class="dots"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="c"></i><i class=""></i><i class=""></i></div><span><span class="hide-sm">Step 6 of 8 &middot; </span><b>Pictures</b><span class="hide-sm"> to review</span></span></div>
+  <span class="btn ghost icon tip below" data-tip="Undo: move scene 9 (Ctrl+Z)"><svg class="ico " aria-hidden="true"><use href="#i-undo"/></svg></span>
+  <span class="btn ghost icon tip below" data-tip="Redo"><svg class="ico " aria-hidden="true"><use href="#i-redo"/></svg></span>
+  <span class="saved hide-sm"><svg class="ico s14" aria-hidden="true"><use href="#i-check"/></svg>Saved 16:58</span>
+  <span class="grow"></span>
+  <div class="seg" role="tablist" aria-label="View"><span class="on"><svg class="ico s14" aria-hidden="true"><use href="#i-grid"/></svg>Storyboard</span><span class="off tip below" data-tip="The timeline is built at step 7 (Edit)"><svg class="ico s14" aria-hidden="true"><use href="#i-film"/></svg>Timeline</span></div>
+  <span class="grow"></span>
+  <span class="pill fail tip below" data-tip="Scene 10: readable text in the picture. Tip: scene 5 holds still for 9.8 s."><span class="dot"></span>1 to fix<span class="hide-sm"> &middot; 1 tip</span></span>
+  <span class="btn ghost tip below" data-tip="Redo the storyboard or failed pictures with a note"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg><span class="hide-md">Regenerate</span><svg class="ico s12" aria-hidden="true"><use href="#i-chev-down"/></svg></span>
+  <span class="btn primary"><svg class="ico s14" aria-hidden="true"><use href="#i-check"/></svg>Approve pictures</span>
+  <span class="num mark-n" style="left:300px;top:12px">2</span>
+</header>
+<main class="ws">
+
+<section class="panel outline" aria-label="Outline">
+  <div class="panel-h"><span class="t">Outline</span><span class="faint small ml-auto">12 scenes &middot; 2:04</span></div>
+  <div class="scroll" style="flex:1">
+    <div class="osec"><div class="osec-h"><i style="background:#3A5A8C"></i>Hook<span>0:00.0&ndash;0:19.8</span></div><div class="orow" title="Scene 1: Blue coat at dusk"><span class="nn">1</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art1" width="160" height="90"/></svg></span><span class="ot">Blue coat at dusk</span><span class="st"></span><span class="ln">9.4</span></div><div class="orow" title="Scene 2: She never waited"><span class="nn">2</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art2" width="160" height="90"/></svg></span><span class="ot">She never waited</span><span class="st"></span><span class="ln">10.4</span></div></div><div class="osec"><div class="osec-h"><i style="background:#3F7A5E"></i>The routine<span>0:19.8&ndash;0:40.2</span></div><div class="orow" title="Scene 3: Leo kept count"><span class="nn">3</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art3" width="160" height="90"/></svg></span><span class="ot">Leo kept count</span><span class="st"></span><span class="ln">10.8</span></div><div class="orow" title="Scene 4: Jar of pennies"><span class="nn">4</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art4" width="160" height="90"/></svg></span><span class="ot">Jar of pennies</span><span class="st"></span><span class="ln">9.6</span></div></div><div class="osec"><div class="osec-h"><i style="background:#6A5A9A"></i>The absence<span>0:40.2&ndash;1:00.8</span></div><div class="orow" title="Scene 5: Six o&#x27;clock, empty"><span class="nn">5</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art5" width="160" height="90"/></svg></span><span class="ot">Six o&#x27;clock, empty</span><span class="st" style="color:#93c5fd" title="Tip: a slow drift keeps a still scene alive"><svg class="ico s12" aria-hidden="true"><use href="#i-info"/></svg></span><span class="ln">9.8</span></div><div class="orow" title="Scene 6: Ruth Callahan"><span class="nn">6</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art6" width="160" height="90"/></svg></span><span class="ot">Ruth Callahan</span><span class="st"></span><span class="ln">10.8</span></div></div><div class="osec"><div class="osec-h"><i style="background:#A0704A"></i>The reason<span>1:00.8&ndash;1:31.4</span></div><div class="orow sel vis" title="Scene 7: Why she paid"><span class="nn">7</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg></span><span class="ot">Why she paid</span><span class="st"></span><span class="ln">10.4</span></div><div class="orow vis" title="Scene 8: The grey hat, 1975"><span class="nn">8</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art8" width="160" height="90"/></svg></span><span class="ot">The grey hat, 1975</span><span class="st"></span><span class="ln">9.8</span></div><div class="orow vis" title="Scene 9: Become the stranger"><span class="nn">9</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art9" width="160" height="90"/></svg></span><span class="ot">Become the stranger</span><span class="st" style="color:#cfd6e4" title="Locked"><svg class="ico s12" aria-hidden="true"><use href="#i-lock"/></svg></span><span class="ln">10.4</span></div></div><div class="osec"><div class="osec-h"><i style="background:#3E8090"></i>The town<span>1:31.4&ndash;2:04.0</span></div><div class="orow vis" title="Scene 10: The note at register 3"><span class="nn">10</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art10" width="160" height="90"/></svg></span><span class="ot">The note at register 3</span><span class="st" style="color:#f87171" title="Picture check failed"><svg class="ico s12" aria-hidden="true"><use href="#i-alert"/></svg></span><span class="ln">10.6</span></div><div class="orow vis" title="Scene 11: Forty-one strangers"><span class="nn">11</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art11" width="160" height="90"/></svg></span><span class="ot">Forty-one strangers</span><span class="st"></span><span class="ln">10.4</span></div><div class="orow vis" title="Scene 12: Ruth comes home"><span class="nn">12</span><span class="th"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art12" width="160" height="90"/></svg></span><span class="ot">Ruth comes home</span><span class="st" title="Making a new picture"><span class="spin"></span></span><span class="ln">11.6</span></div></div>
+    <div class="ohr"></div>
+    <div class="olab"><span class="sec-label">Cast &amp; places</span><span class="ml-auto btn sm ghost icon tip left" data-tip="Add a person or place"><svg class="ico s14" aria-hidden="true"><use href="#i-plus"/></svg></span></div>
+    <div class="cast"><span class="av" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</span><b>Ruth (81)</b><span>5 scenes</span></div><div class="cast"><span class="av" style="background:linear-gradient(135deg,#d99a7c,#8c4a3e)" title="Ruth (1975)">R</span><b>Ruth (1975)</b><span>1 scene</span></div><div class="cast"><span class="av" style="background:linear-gradient(135deg,#86ad9e,#2e4a40)" title="Leo">L</span><b>Leo</b><span>5 scenes</span></div><div class="cast"><span class="av" style="background:linear-gradient(135deg,#a3a5a1,#4a4c4a)" title="The stranger">S</span><b>The stranger</b><span>1 scene</span></div><div class="cast"><span class="av place" style="background:linear-gradient(135deg,#f2a65a,#7a3f1e)" title="Miller&#x27;s Grocery">M</span><b>Miller&#x27;s Grocery</b><span>7 scenes</span></div><div class="cast"><span class="av place" style="background:linear-gradient(135deg,#a9d1c4,#2e4a44)" title="St. Mary&#x27;s hospital">H</span><b>St. Mary&#x27;s hospital</b><span>2 scenes</span></div>
+    <div class="ohr"></div>
+    <div class="olab"><span class="sec-label">Style</span></div>
+    <div class="style"><div class="sheet"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art1" width="160" height="90"/></svg><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art9" width="160" height="90"/></svg></div>
+      <p>Cinematic photo-realism, soft natural light, muted warm palette, shallow depth of field.</p>
+      <a href="#">Edit in Master Sheet &rsaquo;</a></div>
+  </div>
+  <span class="num mark-n" style="left:150px;top:40px">3</span>
+</section>
+
+<section class="panel board" aria-label="Board">
+  <div class="btool">
+    <span class="chip on">All 12</span><span class="chip"><span class="dot" style="background:#ef4444"></span>Needs work 2</span><span class="chip hide-sm">No popup 4</span><span class="chip hide-sm"><svg class="ico s12" aria-hidden="true"><use href="#i-lock"/></svg>Locked 2</span>
+    <span class="ml-auto"></span>
+    <span class="chip hide-md" title="Show the picture prompt instead of the narration">Show prompts</span>
+    <div class="seg sm"><span>S</span><span class="on">M</span><span>L</span></div>
+    <span class="btn sm ghost icon tip left" data-tip="Search narration, prompts and popups"><svg class="ico s14" aria-hidden="true"><use href="#i-search"/></svg></span>
+  </div>
+  <div class="ribbon"><div class="rib" aria-label="Whole video"><div class="rseg" style="left:calc(0.000% + 1px);width:calc(7.581% - 2px);background:#3A5A8C" title="Scene 1">1</div><div class="rseg" style="left:calc(7.581% + 1px);width:calc(8.387% - 2px);background:#3A5A8C" title="Scene 2">2</div><div class="rseg" style="left:calc(15.968% + 1px);width:calc(8.710% - 2px);background:#3F7A5E" title="Scene 3">3</div><div class="rseg" style="left:calc(24.677% + 1px);width:calc(7.742% - 2px);background:#3F7A5E" title="Scene 4">4</div><div class="rseg" style="left:calc(32.419% + 1px);width:calc(7.903% - 2px);background:#6A5A9A" title="Scene 5">5</div><div class="rseg" style="left:calc(40.323% + 1px);width:calc(8.710% - 2px);background:#6A5A9A" title="Scene 6">6</div><div class="rseg sel" style="left:calc(49.032% + 1px);width:calc(8.387% - 2px);background:#A0704A" title="Scene 7">7</div><div class="rseg" style="left:calc(57.419% + 1px);width:calc(7.903% - 2px);background:#A0704A" title="Scene 8">8</div><div class="rseg" style="left:calc(65.323% + 1px);width:calc(8.387% - 2px);background:#A0704A" title="Scene 9">9</div><div class="rseg" style="left:calc(73.710% + 1px);width:calc(8.548% - 2px);background:#3E8090" title="Scene 10">10<i class="rdot" style="background:#ef4444"></i></div><div class="rseg" style="left:calc(82.258% + 1px);width:calc(8.387% - 2px);background:#3E8090" title="Scene 11">11</div><div class="rseg" style="left:calc(90.645% + 1px);width:calc(9.355% - 2px);background:#3E8090" title="Scene 12">12<i class="rdot" style="background:#e8edf7"></i></div><div class="rwin" style="left:calc(49.032% - 2px);width:calc(50.968% + 2px)"></div><div class="rph" style="left:52.903%"></div></div></div>
+  <div class="bscroll scroll"><section class="srow"><div class="srow-h"><i style="background:#A0704A"></i><b>The reason</b><span>Scenes 7&ndash;9 &middot; 30.6 s</span><span class="ml-auto btn sm ghost"><svg class="ico s12" aria-hidden="true"><use href="#i-play"/></svg>Play section</span></div><div class="cards">
+<article class="card sel" aria-current="true" aria-label="Scene 7, Why she paid, 10.4 seconds">
+  <div class="chead"><span class="cn">7</span><span class="ctitle">Why she paid</span><span class="cdur">10.4 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg><div class="popup top-left ">Fifty years earlier</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Slow push in</span><span class="cst"><span class="pill ok sm"><span class="dot"></span>Check passed</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Close-up</span><span>Eye level</span><span>Warm window light</span></div>
+    <div class="narr">When he visited, she finally told him why. Fifty years earlier, a stranger had paid for her groceries on the worst day of her life.</div>
+    <div class="pline"><i></i>&ldquo;Fifty years earlier&rdquo;<em>top left</em></div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</i><i class="" style="background:linear-gradient(135deg,#86ad9e,#2e4a40)" title="Leo">L</i><i class=" place" style="background:linear-gradient(135deg,#a9d1c4,#2e4a44)" title="St. Mary&#x27;s hospital">H</i></span><span class="k" title="Notes"><svg class="ico " aria-hidden="true"><use href="#i-note"/></svg>1</span><span class="k" title="Locked fields"><svg class="ico " aria-hidden="true"><use href="#i-lock"/></svg>2</span></div>
+  </div>
+</article><div class="conn"><span class="tcx tip below" data-tip="Light leak (warm) &middot; 0.8 s. Click to change."><svg class="ico " aria-hidden="true"><use href="#i-sparkles"/></svg></span><span class="td">0.8 s</span></div>
+<article class="card" aria-label="Scene 8, The grey hat, 1975, 9.8 seconds">
+  <div class="chead"><span class="cn">8</span><span class="ctitle">The grey hat, 1975</span><span class="cdur">9.8 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art8" width="160" height="90"/></svg><div class="popup bottom-right ">Four dollars in her purse</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Pan up</span><span class="cst"><span class="pill ok sm"><span class="dot"></span>Check passed</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Medium</span><span>Eye level</span><span>Faded 1975 film</span></div>
+    <div class="narr">Her husband had just lost his job. She had a baby on her hip and four dollars in her purse. Then a man in a grey hat simply said, “I&#x27;ve got this.”</div>
+    <div class="pline"><i></i>&ldquo;Four dollars in her purse&rdquo;<em>bottom right</em></div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#d99a7c,#8c4a3e)" title="Ruth (1975)">R</i><i class="" style="background:linear-gradient(135deg,#a3a5a1,#4a4c4a)" title="The stranger">S</i></span></div>
+  </div>
+</article><div class="conn"><span class="tcx tip below" data-tip="Morph blend &middot; 0.7 s. Click to change."><svg class="ico " aria-hidden="true"><use href="#i-blend"/></svg></span><span class="td">0.7 s</span></div>
+<article class="card" aria-label="Scene 9, Become the stranger, 10.4 seconds">
+  <div class="chead"><span class="cn">9</span><span class="ctitle">Become the stranger</span><span class="cdur">10.4 s</span><svg class="ico s12" aria-hidden="true"><use href="#i-lock"/></svg></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art9" width="160" height="90"/></svg><div class="popup center ">She became the stranger</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Zoom in</span><span class="cst"><span class="pill ok sm"><span class="dot"></span>Approved</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Close-up</span><span>High</span><span>Lamp light</span></div>
+    <div class="narr">She never learned his name. So she decided to become him, one Friday at a time. Every week, for eleven years.</div>
+    <div class="pline"><i></i>&ldquo;She became the stranger&rdquo;<em>centre</em></div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</i></span><span class="k" title="Locked fields"><svg class="ico " aria-hidden="true"><use href="#i-lock"/></svg>5</span></div>
+  </div>
+</article><div class="conn stub"><span class="tcx tip below" data-tip="Crosswarp &middot; 0.6 s. Click to change."><svg class="ico " aria-hidden="true"><use href="#i-swap"/></svg></span><span class="td">0.6 s</span></div></div></section><section class="srow"><div class="srow-h"><i style="background:#3E8090"></i><b>The town</b><span>Scenes 10&ndash;12 &middot; 32.6 s</span><span class="ml-auto btn sm ghost"><svg class="ico s12" aria-hidden="true"><use href="#i-play"/></svg>Play section</span></div><div class="cards">
+<article class="card fail" aria-label="Scene 10, The note at register 3, 10.6 seconds">
+  <div class="chead"><span class="cn">10</span><span class="ctitle">The note at register 3</span><span class="cdur">10.6 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art10" width="160" height="90"/></svg><i class="tint"></i>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Pan right</span><span class="cst"><span class="pill fail sm"><span class="dot"></span>Check failed</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Detail</span><span>Eye level</span><span>Morning</span></div>
+    <div class="narr">Leo wrote her story on a sheet of paper and taped it next to register three. By Monday, the whole town had read it. Some read it twice.</div>
+    <div class="pline" style="color:var(--cfs-ink-faint)">No popup</div>
+    <div class="failbox"><span class="pill fail sm">Readable text in the picture</span><span class="btn sm"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg>New picture</span></div>
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#86ad9e,#2e4a40)" title="Leo">L</i><i class=" place" style="background:linear-gradient(135deg,#f2a65a,#7a3f1e)" title="Miller&#x27;s Grocery">M</i></span><span class="k" title="Notes"><svg class="ico " aria-hidden="true"><use href="#i-note"/></svg>1</span></div>
+  </div>
+</article><div class="conn"><span class="tcx tip below" data-tip="Luma wipe right &middot; 0.6 s. Click to change."><svg class="ico " aria-hidden="true"><use href="#i-chev-right"/></svg></span><span class="td">0.6 s</span></div>
+<article class="card" aria-label="Scene 11, Forty-one strangers, 10.4 seconds">
+  <div class="chead"><span class="cn">11</span><span class="ctitle">Forty-one strangers</span><span class="cdur">10.4 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art11" width="160" height="90"/></svg><div class="popup top-left ">41 strangers. One Friday.</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Slow push in</span><span class="cst"><span class="pill ok sm"><span class="dot"></span>Check passed</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Wide</span><span>Eye level</span><span>Dusk</span></div>
+    <div class="narr">The next Friday, at six o&#x27;clock, forty-one strangers lined up at Miller&#x27;s Grocery. And each one paid for the cart behind them.</div>
+    <div class="pline"><i></i>&ldquo;41 strangers. One Friday.&rdquo;<em>top left</em></div>
+    
+    <div class="cfoot"><span class="avs"><i class=" place" style="background:linear-gradient(135deg,#f2a65a,#7a3f1e)" title="Miller&#x27;s Grocery">M</i></span></div>
+  </div>
+</article><div class="conn"><span class="tcx tip below" data-tip="Blur dissolve &middot; 0.8 s. Click to change."><svg class="ico " aria-hidden="true"><use href="#i-blend"/></svg></span><span class="td">0.8 s</span></div>
+<article class="card gen" aria-label="Scene 12, Ruth comes home, 11.6 seconds">
+  <div class="chead"><span class="cn">12</span><span class="ctitle">Ruth comes home</span><span class="cdur">11.6 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art12" width="160" height="90"/></svg><div class="sheen"></div><div class="gprog"><i></i></div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Zoom out</span><span class="cst"><span class="pill sm" style="color:#e8edf7"><span class="spin"></span>New picture 1 of 3</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Wide</span><span>Eye level</span><span>Morning light</span></div>
+    <div class="narr">Ruth came home in April. The line is still there every Friday. And nobody waits for a thank-you.</div>
+    <div class="pline" style="color:var(--cfs-ink-faint)">No popup</div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</i><i class=" place" style="background:linear-gradient(135deg,#f2a65a,#7a3f1e)" title="Miller&#x27;s Grocery">M</i></span></div>
+  </div>
+</article><div class="conn stub"><span class="tcx tip below" data-tip="Dip to black &middot; 1.0 s. Click to change."><svg class="ico " aria-hidden="true"><use href="#i-dot"/></svg></span><span class="td">1.0 s</span></div></div></section></div>
+  <span class="num mark-n" style="left:10px;top:7px;margin-left:300px">4</span>
+  <span class="num mark-n" style="right:16px;top:38px">5</span>
+  <span class="num mark-n" style="left:26px;top:94px">6</span>
+  <span class="num mark-n" style="left:calc((100% - 28px - 108px) / 3 + 24px);top:146px">7</span>
+  <span class="num mark-n" style="left:30px;top:396px">8</span>
+</section>
+
+<section class="panel animatic" aria-label="Animatic">
+  <div class="panel-h">
+    <span class="t">Animatic</span>
+    <span class="pill ok sm tip below" data-tip="Plays today's pictures with the recorded voice, popups and captions"><span class="dot"></span>Real voice</span>
+    <span class="faint small hide-sm" style="white-space:nowrap">Music: Quiet Morning</span>
+    <span class="ml-auto"></span>
+    <span class="btn sm ghost icon tip below" data-tip="Previous scene"><svg class="ico s14" aria-hidden="true"><use href="#i-prev-cut"/></svg></span>
+    <span class="btn sm icon tip below" data-tip="Play (Space)" style="border-radius:50%;background:#e8edf7;color:#0a0d14;border-color:#e8edf7"><svg class="ico s12" aria-hidden="true"><use href="#i-play"/></svg></span>
+    <span class="btn sm ghost icon tip below" data-tip="Next scene"><svg class="ico s14" aria-hidden="true"><use href="#i-next-cut"/></svg></span>
+    <span class="mono small" style="margin:0 6px;white-space:nowrap"><span style="color:var(--accent)">00:01:05:18</span><span class="faint"> / 00:02:04:00</span></span>
+    <span class="btn sm ghost icon tip below" data-tip="Loop the selected scene"><svg class="ico s14" aria-hidden="true"><use href="#i-loop"/></svg></span>
+    <span class="btn sm dis hide-md"><svg class="ico s14" aria-hidden="true"><use href="#i-film"/></svg>Open in Timeline</span>
+  </div>
+  <div class="ani">
+    <div class="mon"><div class="frame" role="img" aria-label="Scene 7 frame with the popup Fifty years earlier and a caption"><svg class="art" viewBox="2.13 1.27 153.37 86.27" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg><div class="popup top-left ">Fifty years earlier</div><div class="caption">Fifty years earlier, a <span class="aw">stranger</span><br>had paid for her groceries</div></div></div>
+    
+<div class="mtl" aria-label="Animatic timeline">
+  <div class="mr"><span style="left:0.000%">0:00</span><span style="left:24.194%">0:30</span><span style="left:48.387%">1:00</span><span style="left:72.581%">1:30</span><span style="left:96.774%">2:00</span></div>
+  <div class="ml" style="height:34px"><div class="msc" style="left:calc(0.000% + 1px);width:calc(7.581% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art1" width="160" height="90"/></svg><b>1</b></div><div class="msc" style="left:calc(7.581% + 1px);width:calc(8.387% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art2" width="160" height="90"/></svg><b>2</b></div><div class="msc" style="left:calc(15.968% + 1px);width:calc(8.710% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art3" width="160" height="90"/></svg><b>3</b></div><div class="msc" style="left:calc(24.677% + 1px);width:calc(7.742% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art4" width="160" height="90"/></svg><b>4</b></div><div class="msc" style="left:calc(32.419% + 1px);width:calc(7.903% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art5" width="160" height="90"/></svg><b>5</b></div><div class="msc" style="left:calc(40.323% + 1px);width:calc(8.710% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art6" width="160" height="90"/></svg><b>6</b></div><div class="msc sel" style="left:calc(49.032% + 1px);width:calc(8.387% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg><b>7</b></div><div class="msc" style="left:calc(57.419% + 1px);width:calc(7.903% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art8" width="160" height="90"/></svg><b>8</b></div><div class="msc" style="left:calc(65.323% + 1px);width:calc(8.387% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art9" width="160" height="90"/></svg><b>9</b></div><div class="msc fail" style="left:calc(73.710% + 1px);width:calc(8.548% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art10" width="160" height="90"/></svg><b>10</b></div><div class="msc" style="left:calc(82.258% + 1px);width:calc(8.387% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art11" width="160" height="90"/></svg><b>11</b></div><div class="msc" style="left:calc(90.645% + 1px);width:calc(9.355% - 2px)"><svg class="" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art12" width="160" height="90"/></svg><b>12</b><div class="sheen"></div></div></div>
+  <div class="ml" style="height:8px;background:transparent"><i class="mpop" style="left:0.565%;width:3.226%"></i><i class="mpop" style="left:16.210%;width:3.226%"></i><i class="mpop" style="left:32.661%;width:3.226%"></i><i class="mpop" style="left:40.726%;width:3.226%"></i><i class="mpop" style="left:51.935%;width:3.226%"></i><i class="mpop" style="left:59.516%;width:3.226%"></i><i class="mpop" style="left:65.565%;width:3.226%"></i><i class="mpop" style="left:82.500%;width:3.226%"></i></div>
+  <div class="ml" style="height:7px;background:transparent"><i class="mcap" style="left:0.323%;width:calc(3.790% - 1px)"></i><i class="mcap" style="left:4.435%;width:calc(2.500% - 1px)"></i><i class="mcap" style="left:7.581%;width:calc(1.774% - 1px)"></i><i class="mcap" style="left:9.677%;width:calc(5.323% - 1px)"></i><i class="mcap" style="left:15.968%;width:calc(3.710% - 1px)"></i><i class="mcap" style="left:20.081%;width:calc(1.532% - 1px)"></i><i class="mcap" style="left:21.935%;width:calc(2.177% - 1px)"></i><i class="mcap" style="left:24.677%;width:calc(1.935% - 1px)"></i><i class="mcap" style="left:26.935%;width:calc(1.452% - 1px)"></i><i class="mcap" style="left:28.710%;width:calc(3.065% - 1px)"></i><i class="mcap" style="left:32.419%;width:calc(3.306% - 1px)"></i><i class="mcap" style="left:36.129%;width:calc(3.065% - 1px)"></i><i class="mcap" style="left:40.484%;width:calc(0.968% - 1px)"></i><i class="mcap" style="left:41.855%;width:calc(1.371% - 1px)"></i><i class="mcap" style="left:43.629%;width:calc(4.435% - 1px)"></i><i class="mcap" style="left:49.032%;width:calc(2.258% - 1px)"></i><i class="mcap" style="left:51.694%;width:calc(4.435% - 1px)"></i><i class="mcap" style="left:57.419%;width:calc(1.532% - 1px)"></i><i class="mcap" style="left:59.274%;width:calc(2.500% - 1px)"></i><i class="mcap" style="left:62.097%;width:calc(2.661% - 1px)"></i><i class="mcap" style="left:65.323%;width:calc(1.532% - 1px)"></i><i class="mcap" style="left:67.258%;width:calc(3.871% - 1px)"></i><i class="mcap" style="left:71.613%;width:calc(1.694% - 1px)"></i><i class="mcap" style="left:73.710%;width:calc(3.710% - 1px)"></i><i class="mcap" style="left:77.823%;width:calc(2.339% - 1px)"></i><i class="mcap" style="left:80.565%;width:calc(1.129% - 1px)"></i><i class="mcap" style="left:82.258%;width:calc(3.952% - 1px)"></i><i class="mcap" style="left:86.613%;width:calc(3.065% - 1px)"></i><i class="mcap" style="left:90.645%;width:calc(1.532% - 1px)"></i><i class="mcap" style="left:92.581%;width:calc(2.258% - 1px)"></i><i class="mcap" style="left:95.242%;width:calc(2.661% - 1px)"></i></div>
+  <div class="ml" style="height:26px;background:var(--lane-voice)"><svg class="w" viewBox="0 0 1240 26" preserveAspectRatio="none"><path d="M0,12.5 L2,12.6 L4,5.0 L6,4.1 L8,2.9 L10,4.2 L12,2.5 L14,3.5 L16,10.1 L18,2.6 L20,3.8 L22,4.5 L24,4.2 L26,2.3 L28,5.9 L30,4.7 L32,2.8 L34,7.4 L36,3.6 L38,6.6 L40,5.1 L42,4.4 L44,3.5 L46,8.2 L48,3.4 L50,6.3 L52,12.5 L54,12.5 L56,2.1 L58,6.7 L60,3.2 L62,6.3 L64,3.4 L66,4.9 L68,3.7 L70,4.2 L72,5.1 L74,3.3 L76,6.9 L78,4.5 L80,2.3 L82,8.4 L84,2.5 L86,12.5 L88,12.5 L90,12.5 L92,12.6 L94,4.4 L96,5.6 L98,1.7 L100,8.4 L102,3.0 L104,4.6 L106,2.7 L108,4.1 L110,6.7 L112,2.2 L114,5.5 L116,12.5 L118,12.5 L120,4.2 L122,4.9 L124,3.1 L126,3.9 L128,4.7 L130,6.5 L132,3.2 L134,8.6 L136,6.2 L138,2.7 L140,8.3 L142,3.7 L144,2.6 L146,6.5 L148,3.4 L150,5.5 L152,12.5 L154,3.3 L156,4.4 L158,6.3 L160,2.8 L162,8.9 L164,2.9 L166,4.3 L168,3.3 L170,4.2 L172,6.2 L174,2.5 L176,7.7 L178,3.6 L180,4.3 L182,7.1 L184,2.3 L186,12.5 L188,12.5 L190,12.5 L192,12.5 L194,12.5 L196,12.5 L198,3.8 L200,6.1 L202,3.2 L204,5.2 L206,3.4 L208,4.0 L210,11.5 L212,3.7 L214,6.5 L216,2.5 L218,10.0 L220,5.8 L222,6.0 L224,4.0 L226,4.5 L228,8.1 L230,2.2 L232,7.2 L234,3.1 L236,8.8 L238,2.1 L240,7.0 L242,2.2 L244,12.6 L246,12.5 L248,12.6 L250,1.8 L252,8.1 L254,2.5 L256,7.2 L258,3.2 L260,5.5 L262,3.2 L264,7.6 L266,3.0 L268,12.5 L270,12.5 L272,8.9 L274,3.5 L276,4.9 L278,9.9 L280,3.2 L282,3.5 L284,3.8 L286,5.7 L288,3.2 L290,3.8 L292,5.7 L294,4.1 L296,5.8 L298,5.7 L300,12.5 L302,12.5 L304,12.6 L306,6.5 L308,5.4 L310,3.4 L312,6.0 L314,2.0 L316,5.9 L318,2.7 L320,7.5 L322,3.4 L324,3.9 L326,7.2 L328,4.5 L330,12.6 L332,12.6 L334,6.5 L336,5.3 L338,1.6 L340,8.4 L342,3.0 L344,4.5 L346,7.5 L348,3.2 L350,2.9 L352,12.5 L354,12.5 L356,5.1 L358,4.7 L360,1.7 L362,4.6 L364,4.3 L366,4.0 L368,5.0 L370,3.9 L372,7.6 L374,3.2 L376,7.1 L378,2.2 L380,7.8 L382,4.5 L384,2.9 L386,4.0 L388,7.0 L390,3.1 L392,3.6 L394,12.5 L396,12.5 L398,12.5 L400,12.6 L402,7.3 L404,3.8 L406,4.3 L408,6.6 L410,3.9 L412,4.4 L414,7.0 L416,5.5 L418,3.8 L420,5.6 L422,12.5 L424,3.0 L426,6.7 L428,3.7 L430,4.0 L432,7.4 L434,3.1 L436,4.2 L438,5.9 L440,2.2 L442,5.0 L444,12.5 L446,12.5 L448,4.5 L450,4.1 L452,4.5 L454,2.1 L456,7.6 L458,2.8 L460,6.7 L462,3.9 L464,4.8 L466,7.4 L468,2.8 L470,8.4 L472,3.1 L474,2.0 L476,5.8 L478,5.8 L480,4.2 L482,4.2 L484,3.2 L486,12.5 L488,12.5 L490,12.5 L492,12.5 L494,12.5 L496,12.5 L498,12.5 L500,12.6 L502,4.7 L504,5.8 L506,3.4 L508,5.8 L510,5.3 L512,3.7 L514,12.6 L516,12.5 L518,12.5 L520,3.0 L522,2.2 L524,5.3 L526,2.7 L528,3.1 L530,6.6 L532,3.3 L534,2.9 L536,12.6 L538,12.5 L540,12.5 L542,3.5 L544,3.6 L546,8.7 L548,2.8 L550,3.2 L552,9.1 L554,8.6 L556,2.7 L558,2.1 L560,4.7 L562,3.4 L564,6.9 L566,4.9 L568,2.6 L570,3.5 L572,4.3 L574,7.6 L576,3.0 L578,6.0 L580,3.8 L582,2.8 L584,3.3 L586,6.7 L588,4.0 L590,8.3 L592,3.4 L594,4.3 L596,12.5 L598,12.6 L600,12.5 L602,12.6 L604,12.5 L606,12.5 L608,7.1 L610,5.0 L612,2.6 L614,3.8 L616,2.2 L618,12.5 L620,4.0 L622,8.8 L624,3.3 L626,6.5 L628,3.0 L630,6.8 L632,3.0 L634,3.4 L636,12.5 L638,12.5 L640,12.5 L642,2.7 L644,6.2 L646,3.7 L648,4.4 L650,2.5 L652,9.9 L654,3.9 L656,4.2 L658,4.1 L660,4.2 L662,3.4 L664,3.4 L666,2.2 L668,3.3 L670,4.0 L672,2.6 L674,6.8 L676,7.1 L678,2.9 L680,2.9 L682,5.5 L684,3.7 L686,3.8 L688,4.3 L690,6.6 L692,2.8 L694,3.3 L696,12.5 L698,12.5 L700,12.5 L702,12.6 L704,12.5 L706,12.6 L708,12.5 L710,12.5 L712,4.0 L714,8.4 L716,3.0 L718,7.8 L720,4.6 L722,2.4 L724,2.3 L726,6.6 L728,3.9 L730,3.7 L732,12.5 L734,12.5 L736,4.0 L738,3.3 L740,3.3 L742,2.3 L744,2.6 L746,4.4 L748,3.8 L750,3.0 L752,5.9 L754,6.0 L756,3.0 L758,6.5 L760,4.7 L762,4.0 L764,2.9 L766,12.5 L768,12.5 L770,6.5 L772,5.2 L774,5.2 L776,3.5 L778,2.2 L780,5.9 L782,3.7 L784,4.0 L786,6.6 L788,3.4 L790,5.3 L792,3.6 L794,5.9 L796,3.3 L798,3.5 L800,5.9 L802,5.4 L804,12.5 L806,12.5 L808,12.5 L810,4.7 L812,5.3 L814,2.7 L816,6.7 L818,3.8 L820,3.5 L822,8.5 L824,2.9 L826,3.7 L828,4.3 L830,12.5 L832,12.6 L834,4.6 L836,4.5 L838,2.5 L840,6.9 L842,3.8 L844,3.5 L846,5.6 L848,3.4 L850,6.8 L852,2.9 L854,3.8 L856,8.9 L858,3.4 L860,6.4 L862,8.0 L864,3.1 L866,8.8 L868,2.8 L870,4.9 L872,7.8 L874,4.5 L876,4.0 L878,3.8 L880,2.2 L882,12.5 L884,12.5 L886,12.6 L888,6.4 L890,3.9 L892,5.9 L894,3.1 L896,12.6 L898,2.8 L900,7.6 L902,2.8 L904,9.2 L906,3.7 L908,6.4 L910,12.5 L912,12.6 L914,2.9 L916,7.4 L918,2.2 L920,4.2 L922,6.7 L924,2.0 L926,3.4 L928,4.7 L930,3.7 L932,5.9 L934,3.6 L936,2.4 L938,6.3 L940,3.9 L942,2.3 L944,7.9 L946,6.3 L948,4.3 L950,3.4 L952,3.9 L954,3.4 L956,8.0 L958,3.6 L960,12.5 L962,12.6 L964,12.5 L966,3.2 L968,4.5 L970,3.2 L972,12.2 L974,5.2 L976,6.7 L978,2.9 L980,5.8 L982,3.3 L984,6.0 L986,3.8 L988,6.0 L990,4.1 L992,3.7 L994,12.5 L996,12.6 L998,12.5 L1000,2.8 L1002,8.9 L1004,2.0 L1006,7.6 L1008,5.7 L1010,3.4 L1012,5.9 L1014,12.5 L1016,12.6 L1018,12.5 L1020,3.2 L1022,6.8 L1024,3.0 L1026,3.6 L1028,4.8 L1030,8.7 L1032,6.9 L1034,3.2 L1036,2.0 L1038,5.5 L1040,11.3 L1042,4.0 L1044,2.8 L1046,8.5 L1048,2.4 L1050,4.3 L1052,5.4 L1054,4.4 L1056,2.9 L1058,2.1 L1060,3.8 L1062,3.4 L1064,8.7 L1066,3.2 L1068,6.5 L1070,12.5 L1072,12.5 L1074,5.2 L1076,3.7 L1078,4.4 L1080,3.4 L1082,5.2 L1084,3.7 L1086,3.9 L1088,2.7 L1090,5.1 L1092,3.6 L1094,4.9 L1096,5.4 L1098,3.5 L1100,4.0 L1102,5.5 L1104,2.2 L1106,4.6 L1108,5.4 L1110,2.7 L1112,12.5 L1114,12.5 L1116,12.5 L1118,12.5 L1120,12.6 L1122,12.5 L1124,7.1 L1126,3.1 L1128,7.0 L1130,4.2 L1132,6.7 L1134,3.8 L1136,3.6 L1138,7.7 L1140,3.3 L1142,6.0 L1144,12.6 L1146,12.6 L1148,4.2 L1150,4.8 L1152,3.0 L1154,7.5 L1156,2.3 L1158,3.6 L1160,3.2 L1162,5.8 L1164,2.9 L1166,7.0 L1168,3.3 L1170,6.8 L1172,2.9 L1174,4.1 L1176,12.5 L1178,12.6 L1180,12.5 L1182,3.1 L1184,4.8 L1186,5.1 L1188,3.4 L1190,5.1 L1192,7.5 L1194,2.9 L1196,4.4 L1198,4.9 L1200,3.5 L1202,5.5 L1204,8.6 L1206,4.8 L1208,3.2 L1210,2.8 L1212,7.2 L1214,12.5 L1216,12.5 L1218,12.5 L1220,12.5 L1222,12.6 L1224,12.5 L1226,12.6 L1228,12.6 L1230,12.5 L1232,12.6 L1234,12.6 L1236,12.5 L1238,12.5 L1240,12.5 L1240,13.5 L1238,13.5 L1236,13.5 L1234,13.4 L1232,13.4 L1230,13.5 L1228,13.4 L1226,13.4 L1224,13.5 L1222,13.4 L1220,13.5 L1218,13.5 L1216,13.5 L1214,13.5 L1212,18.8 L1210,23.2 L1208,22.8 L1206,21.2 L1204,17.4 L1202,20.5 L1200,22.5 L1198,21.1 L1196,21.6 L1194,23.1 L1192,18.5 L1190,20.9 L1188,22.6 L1186,20.9 L1184,21.2 L1182,22.9 L1180,13.5 L1178,13.4 L1176,13.5 L1174,21.9 L1172,23.1 L1170,19.2 L1168,22.7 L1166,19.0 L1164,23.1 L1162,20.2 L1160,22.8 L1158,22.4 L1156,23.7 L1154,18.5 L1152,23.0 L1150,21.2 L1148,21.8 L1146,13.4 L1144,13.4 L1142,20.0 L1140,22.7 L1138,18.3 L1136,22.4 L1134,22.2 L1132,19.3 L1130,21.8 L1128,19.0 L1126,22.9 L1124,18.9 L1122,13.5 L1120,13.4 L1118,13.5 L1116,13.5 L1114,13.5 L1112,13.5 L1110,23.3 L1108,20.6 L1106,21.4 L1104,23.8 L1102,20.5 L1100,22.0 L1098,22.5 L1096,20.6 L1094,21.1 L1092,22.4 L1090,20.9 L1088,23.3 L1086,22.1 L1084,22.3 L1082,20.8 L1080,22.6 L1078,21.6 L1076,22.3 L1074,20.8 L1072,13.5 L1070,13.5 L1068,19.5 L1066,22.8 L1064,17.3 L1062,22.6 L1060,22.2 L1058,23.9 L1056,23.1 L1054,21.6 L1052,20.6 L1050,21.7 L1048,23.6 L1046,17.5 L1044,23.2 L1042,22.0 L1040,14.7 L1038,20.5 L1036,24.0 L1034,22.8 L1032,19.1 L1030,17.3 L1028,21.2 L1026,22.4 L1024,23.0 L1022,19.2 L1020,22.8 L1018,13.5 L1016,13.4 L1014,13.5 L1012,20.1 L1010,22.6 L1008,20.3 L1006,18.4 L1004,24.0 L1002,17.1 L1000,23.2 L998,13.5 L996,13.4 L994,13.5 L992,22.3 L990,21.9 L988,20.0 L986,22.2 L984,20.0 L982,22.7 L980,20.2 L978,23.1 L976,19.3 L974,20.8 L972,13.8 L970,22.8 L968,21.5 L966,22.8 L964,13.5 L962,13.4 L960,13.5 L958,22.4 L956,18.0 L954,22.6 L952,22.1 L950,22.6 L948,21.7 L946,19.7 L944,18.1 L942,23.7 L940,22.1 L938,19.7 L936,23.6 L934,22.4 L932,20.1 L930,22.3 L928,21.3 L926,22.6 L924,24.0 L922,19.3 L920,21.8 L918,23.8 L916,18.6 L914,23.1 L912,13.4 L910,13.5 L908,19.6 L906,22.3 L904,16.8 L902,23.2 L900,18.4 L898,23.2 L896,13.4 L894,22.9 L892,20.1 L890,22.1 L888,19.6 L886,13.4 L884,13.5 L882,13.5 L880,23.8 L878,22.2 L876,22.0 L874,21.5 L872,18.2 L870,21.1 L868,23.2 L866,17.2 L864,22.9 L862,18.0 L860,19.6 L858,22.6 L856,17.1 L854,22.2 L852,23.1 L850,19.2 L848,22.6 L846,20.4 L844,22.5 L842,22.2 L840,19.1 L838,23.5 L836,21.5 L834,21.4 L832,13.4 L830,13.5 L828,21.7 L826,22.3 L824,23.1 L822,17.5 L820,22.5 L818,22.2 L816,19.3 L814,23.3 L812,20.7 L810,21.3 L808,13.5 L806,13.5 L804,13.5 L802,20.6 L800,20.1 L798,22.5 L796,22.7 L794,20.1 L792,22.4 L790,20.7 L788,22.6 L786,19.4 L784,22.0 L782,22.3 L780,20.1 L778,23.8 L776,22.5 L774,20.8 L772,20.8 L770,19.5 L768,13.5 L766,13.5 L764,23.1 L762,22.0 L760,21.3 L758,19.5 L756,23.0 L754,20.0 L752,20.1 L750,23.0 L748,22.2 L746,21.6 L744,23.4 L742,23.7 L740,22.7 L738,22.7 L736,22.0 L734,13.5 L732,13.5 L730,22.3 L728,22.1 L726,19.4 L724,23.7 L722,23.6 L720,21.4 L718,18.2 L716,23.0 L714,17.6 L712,22.0 L710,13.5 L708,13.5 L706,13.4 L704,13.5 L702,13.4 L700,13.5 L698,13.5 L696,13.5 L694,22.7 L692,23.2 L690,19.4 L688,21.7 L686,22.2 L684,22.3 L682,20.5 L680,23.1 L678,23.1 L676,18.9 L674,19.2 L672,23.4 L670,22.0 L668,22.7 L666,23.8 L664,22.6 L662,22.6 L660,21.8 L658,21.9 L656,21.8 L654,22.1 L652,16.1 L650,23.5 L648,21.6 L646,22.3 L644,19.8 L642,23.3 L640,13.5 L638,13.5 L636,13.5 L634,22.6 L632,23.0 L630,19.2 L628,23.0 L626,19.5 L624,22.7 L622,17.2 L620,22.0 L618,13.5 L616,23.8 L614,22.2 L612,23.4 L610,21.0 L608,18.9 L606,13.5 L604,13.5 L602,13.4 L600,13.5 L598,13.4 L596,13.5 L594,21.7 L592,22.6 L590,17.7 L588,22.0 L586,19.3 L584,22.7 L582,23.2 L580,22.2 L578,20.0 L576,23.0 L574,18.4 L572,21.7 L570,22.5 L568,23.4 L566,21.1 L564,19.1 L562,22.6 L560,21.3 L558,23.9 L556,23.3 L554,17.4 L552,16.9 L550,22.8 L548,23.2 L546,17.3 L544,22.4 L542,22.5 L540,13.5 L538,13.5 L536,13.4 L534,23.1 L532,22.7 L530,19.4 L528,22.9 L526,23.3 L524,20.7 L522,23.8 L520,23.0 L518,13.5 L516,13.5 L514,13.4 L512,22.3 L510,20.7 L508,20.2 L506,22.6 L504,20.2 L502,21.3 L500,13.4 L498,13.5 L496,13.5 L494,13.5 L492,13.5 L490,13.5 L488,13.5 L486,13.5 L484,22.8 L482,21.8 L480,21.8 L478,20.2 L476,20.2 L474,24.0 L472,22.9 L470,17.6 L468,23.2 L466,18.6 L464,21.2 L462,22.1 L460,19.3 L458,23.2 L456,18.4 L454,23.9 L452,21.5 L450,21.9 L448,21.5 L446,13.5 L444,13.5 L442,21.0 L440,23.8 L438,20.1 L436,21.8 L434,22.9 L432,18.6 L430,22.0 L428,22.3 L426,19.3 L424,23.0 L422,13.5 L420,20.4 L418,22.2 L416,20.5 L414,19.0 L412,21.6 L410,22.1 L408,19.4 L406,21.7 L404,22.2 L402,18.7 L400,13.4 L398,13.5 L396,13.5 L394,13.5 L392,22.4 L390,22.9 L388,19.0 L386,22.0 L384,23.1 L382,21.5 L380,18.2 L378,23.8 L376,18.9 L374,22.8 L372,18.4 L370,22.1 L368,21.0 L366,22.0 L364,21.7 L362,21.4 L360,24.3 L358,21.3 L356,20.9 L354,13.5 L352,13.5 L350,23.1 L348,22.8 L346,18.5 L344,21.5 L342,23.0 L340,17.6 L338,24.4 L336,20.7 L334,19.5 L332,13.4 L330,13.4 L328,21.5 L326,18.8 L324,22.1 L322,22.6 L320,18.5 L318,23.3 L316,20.1 L314,24.0 L312,20.0 L310,22.6 L308,20.6 L306,19.5 L304,13.4 L302,13.5 L300,13.5 L298,20.3 L296,20.2 L294,21.9 L292,20.3 L290,22.2 L288,22.8 L286,20.3 L284,22.2 L282,22.5 L280,22.8 L278,16.1 L276,21.1 L274,22.5 L272,17.1 L270,13.5 L268,13.5 L266,23.0 L264,18.4 L262,22.8 L260,20.5 L258,22.8 L256,18.8 L254,23.5 L252,17.9 L250,24.2 L248,13.4 L246,13.5 L244,13.4 L242,23.8 L240,19.0 L238,23.9 L236,17.2 L234,22.9 L232,18.8 L230,23.8 L228,17.9 L226,21.5 L224,22.0 L222,20.0 L220,20.2 L218,16.0 L216,23.5 L214,19.5 L212,22.3 L210,14.5 L208,22.0 L206,22.6 L204,20.8 L202,22.8 L200,19.9 L198,22.2 L196,13.5 L194,13.5 L192,13.5 L190,13.5 L188,13.5 L186,13.5 L184,23.7 L182,18.9 L180,21.7 L178,22.4 L176,18.3 L174,23.5 L172,19.8 L170,21.8 L168,22.7 L166,21.7 L164,23.1 L162,17.1 L160,23.2 L158,19.7 L156,21.6 L154,22.7 L152,13.5 L150,20.5 L148,22.6 L146,19.5 L144,23.4 L142,22.3 L140,17.7 L138,23.3 L136,19.8 L134,17.4 L132,22.8 L130,19.5 L128,21.3 L126,22.1 L124,22.9 L122,21.1 L120,21.8 L118,13.5 L116,13.5 L114,20.5 L112,23.8 L110,19.3 L108,21.9 L106,23.3 L104,21.4 L102,23.0 L100,17.6 L98,24.3 L96,20.4 L94,21.6 L92,13.4 L90,13.5 L88,13.5 L86,13.5 L84,23.5 L82,17.6 L80,23.7 L78,21.5 L76,19.1 L74,22.7 L72,20.9 L70,21.8 L68,22.3 L66,21.1 L64,22.6 L62,19.7 L60,22.8 L58,19.3 L56,23.9 L54,13.5 L52,13.5 L50,19.7 L48,22.6 L46,17.8 L44,22.5 L42,21.6 L40,20.9 L38,19.4 L36,22.4 L34,18.6 L32,23.2 L30,21.3 L28,20.1 L26,23.7 L24,21.8 L22,21.5 L20,22.2 L18,23.4 L16,15.9 L14,22.5 L12,23.5 L10,21.8 L8,23.1 L6,21.9 L4,21.0 L2,13.4 L0,13.5 Z" fill="#7fd6e6"/></svg></div>
+  <div class="ml" style="height:18px;background:var(--lane-music)"><svg class="w" viewBox="0 0 1240 18" preserveAspectRatio="none"><path d="M0,4.9 L2,6.4 L4,7.8 L6,9.0 L8,7.9 L10,8.8 L12,9.3 L14,9.6 L16,8.9 L18,9.4 L20,9.7 L22,9.9 L24,8.9 L26,9.3 L28,9.7 L30,8.0 L32,8.7 L34,9.2 L36,9.6 L38,8.3 L40,8.9 L42,9.4 L44,9.7 L46,8.2 L48,8.9 L50,9.3 L52,9.6 L54,8.9 L56,9.4 L58,9.7 L60,8.1 L62,8.8 L64,9.3 L66,9.6 L68,8.2 L70,8.8 L72,9.3 L74,9.6 L76,8.1 L78,8.8 L80,9.3 L82,9.6 L84,8.4 L86,9.0 L88,9.3 L90,7.2 L92,7.9 L94,8.5 L96,9.3 L98,8.0 L100,8.8 L102,9.3 L104,9.6 L106,8.2 L108,8.9 L110,9.3 L112,9.6 L114,9.0 L116,9.4 L118,9.6 L120,7.4 L122,8.5 L124,9.1 L126,9.5 L128,8.2 L130,8.9 L132,9.3 L134,9.6 L136,8.1 L138,8.8 L140,9.3 L142,9.6 L144,8.2 L146,8.9 L148,9.3 L150,8.5 L152,9.1 L154,9.4 L156,9.7 L158,8.2 L160,8.8 L162,9.3 L164,9.6 L166,9.0 L168,9.4 L170,9.7 L172,9.9 L174,8.7 L176,9.2 L178,9.6 L180,8.6 L182,9.2 L184,9.5 L186,9.8 L188,8.8 L190,9.1 L192,9.3 L194,9.4 L196,7.3 L198,8.0 L200,9.2 L202,9.6 L204,8.3 L206,8.9 L208,9.4 L210,8.7 L212,9.1 L214,9.5 L216,9.8 L218,8.8 L220,9.2 L222,9.6 L224,9.8 L226,8.8 L228,9.3 L230,9.6 L232,9.8 L234,8.9 L236,9.4 L238,9.7 L240,8.9 L242,9.3 L244,9.6 L246,9.8 L248,7.5 L250,8.5 L252,9.1 L254,9.5 L256,8.7 L258,9.2 L260,9.6 L262,9.8 L264,8.9 L266,9.3 L268,9.6 L270,8.7 L272,9.1 L274,9.5 L276,9.8 L278,8.2 L280,8.9 L282,9.3 L284,9.6 L286,8.7 L288,9.2 L290,9.5 L292,9.8 L294,8.6 L296,9.2 L298,9.5 L300,7.8 L302,8.3 L304,8.7 L306,9.0 L308,7.7 L310,8.6 L312,9.2 L314,9.5 L316,8.8 L318,9.3 L320,9.6 L322,9.8 L324,9.2 L326,9.6 L328,9.8 L330,8.4 L332,8.8 L334,9.1 L336,9.6 L338,8.7 L340,9.2 L342,9.6 L344,9.8 L346,8.2 L348,8.9 L350,9.3 L352,9.6 L354,8.5 L356,8.9 L358,9.4 L360,7.7 L362,8.5 L364,9.1 L366,9.5 L368,8.0 L370,8.7 L372,9.2 L374,9.6 L376,9.1 L378,9.5 L380,9.7 L382,9.9 L384,8.7 L386,9.2 L388,9.6 L390,8.4 L392,9.0 L394,9.4 L396,9.6 L398,7.6 L400,8.2 L402,8.8 L404,9.4 L406,8.8 L408,9.4 L410,9.7 L412,9.9 L414,9.1 L416,9.5 L418,9.8 L420,8.0 L422,8.7 L424,9.2 L426,9.5 L428,8.6 L430,9.2 L432,9.5 L434,9.8 L436,8.4 L438,9.0 L440,9.4 L442,9.7 L444,8.4 L446,8.8 L448,9.1 L450,7.9 L452,8.7 L454,9.2 L456,9.6 L458,8.7 L460,9.2 L462,9.6 L464,9.8 L466,8.8 L468,9.3 L470,9.6 L472,9.8 L474,8.7 L476,9.2 L478,9.6 L480,8.8 L482,9.3 L484,9.6 L486,9.8 L488,8.7 L490,8.9 L492,9.2 L494,9.4 L496,7.3 L498,8.0 L500,8.5 L502,9.1 L504,8.1 L506,9.0 L508,9.5 L510,7.8 L512,8.6 L514,9.2 L516,9.4 L518,8.4 L520,9.1 L522,9.5 L524,9.8 L526,8.7 L528,9.2 L530,9.6 L532,9.8 L534,9.2 L536,9.5 L538,9.6 L540,7.1 L542,8.2 L544,9.0 L546,9.5 L548,8.3 L550,8.9 L552,9.4 L554,9.6 L556,8.8 L558,9.3 L560,9.6 L562,9.8 L564,8.7 L566,9.2 L568,9.6 L570,8.4 L572,9.0 L574,9.4 L576,9.7 L578,8.2 L580,8.9 L582,9.3 L584,9.6 L586,8.6 L588,9.1 L590,9.5 L592,9.8 L594,8.5 L596,9.1 L598,9.3 L600,7.0 L602,7.8 L604,8.3 L606,8.7 L608,5.9 L610,8.1 L612,8.9 L614,9.4 L616,9.0 L618,9.4 L620,9.7 L622,9.9 L624,9.0 L626,9.4 L628,9.7 L630,8.7 L632,9.2 L634,9.6 L636,9.8 L638,8.2 L640,8.6 L642,9.2 L644,9.6 L646,9.0 L648,9.4 L650,9.7 L652,9.9 L654,8.9 L656,9.4 L658,9.7 L660,8.4 L662,9.0 L664,9.4 L666,9.7 L668,8.1 L670,8.8 L672,9.3 L674,9.6 L676,8.8 L678,9.3 L680,9.6 L682,9.8 L684,8.8 L686,9.3 L688,9.6 L690,8.0 L692,8.7 L694,9.2 L696,9.6 L698,8.5 L700,8.8 L702,9.1 L704,9.3 L706,8.2 L708,8.6 L710,8.9 L712,9.4 L714,7.9 L716,8.8 L718,9.4 L720,7.5 L722,8.4 L724,9.0 L726,9.4 L728,8.2 L730,8.9 L732,9.3 L734,9.5 L736,7.7 L738,8.7 L740,9.2 L742,9.6 L744,8.9 L746,9.3 L748,9.6 L750,8.7 L752,9.2 L754,9.6 L756,9.8 L758,8.6 L760,9.1 L762,9.5 L764,9.8 L766,9.1 L768,9.4 L770,9.6 L772,9.9 L774,8.3 L776,9.0 L778,9.4 L780,8.2 L782,8.9 L784,9.3 L786,9.6 L788,8.7 L790,9.2 L792,9.5 L794,9.7 L796,8.9 L798,9.3 L800,9.7 L802,9.9 L804,8.7 L806,9.0 L808,9.3 L810,8.1 L812,8.9 L814,9.5 L816,9.8 L818,9.0 L820,9.4 L822,9.7 L824,9.9 L826,8.8 L828,9.3 L830,9.6 L832,9.7 L834,8.1 L836,8.9 L838,9.4 L840,8.3 L842,8.9 L844,9.4 L846,9.7 L848,8.8 L850,9.2 L852,9.6 L854,9.8 L856,8.8 L858,9.3 L860,9.6 L862,9.8 L864,9.0 L866,9.4 L868,9.7 L870,8.3 L872,8.9 L874,9.4 L876,9.7 L878,8.6 L880,9.1 L882,9.5 L884,9.7 L886,8.7 L888,9.1 L890,9.6 L892,9.9 L894,9.0 L896,9.4 L898,9.7 L900,8.6 L902,9.1 L904,9.5 L906,9.8 L908,8.7 L910,9.2 L912,9.4 L914,9.5 L916,8.1 L918,8.8 L920,9.3 L922,9.6 L924,8.3 L926,8.9 L928,9.4 L930,8.8 L932,9.3 L934,9.6 L936,9.8 L938,8.8 L940,9.2 L942,9.6 L944,9.8 L946,8.9 L948,9.3 L950,9.6 L952,9.8 L954,8.6 L956,9.1 L958,9.5 L960,7.9 L962,8.5 L964,8.8 L966,9.4 L968,8.6 L970,9.2 L972,9.5 L974,9.7 L976,8.4 L978,9.0 L980,9.4 L982,9.7 L984,8.4 L986,9.0 L988,9.4 L990,7.6 L992,8.4 L994,9.0 L996,9.3 L998,7.8 L1000,8.7 L1002,9.3 L1004,9.6 L1006,8.7 L1008,9.2 L1010,9.6 L1012,9.8 L1014,9.0 L1016,9.3 L1018,9.4 L1020,7.4 L1022,8.6 L1024,9.2 L1026,9.6 L1028,8.0 L1030,8.6 L1032,9.2 L1034,9.6 L1036,8.3 L1038,9.0 L1040,9.3 L1042,9.6 L1044,8.6 L1046,9.2 L1048,9.5 L1050,8.4 L1052,9.0 L1054,9.4 L1056,9.7 L1058,8.8 L1060,9.3 L1062,9.6 L1064,9.8 L1066,8.3 L1068,8.9 L1070,9.3 L1072,9.5 L1074,8.7 L1076,9.4 L1078,9.7 L1080,8.8 L1082,9.3 L1084,9.6 L1086,9.9 L1088,8.5 L1090,9.1 L1092,9.5 L1094,9.7 L1096,8.4 L1098,9.0 L1100,9.4 L1102,9.7 L1104,8.7 L1106,9.2 L1108,9.6 L1110,8.0 L1112,8.7 L1114,9.0 L1116,9.3 L1118,7.9 L1120,8.4 L1122,8.8 L1124,9.2 L1126,8.1 L1128,9.0 L1130,9.4 L1132,9.7 L1134,8.5 L1136,9.1 L1138,9.5 L1140,8.0 L1142,8.7 L1144,9.2 L1146,9.4 L1148,8.2 L1150,9.0 L1152,9.5 L1154,9.7 L1156,8.5 L1158,9.1 L1160,9.5 L1162,9.8 L1164,8.7 L1166,9.2 L1168,9.5 L1170,7.8 L1172,8.6 L1174,9.1 L1176,9.5 L1178,7.6 L1180,8.1 L1182,8.9 L1184,9.4 L1186,8.1 L1188,8.9 L1190,9.3 L1192,9.6 L1194,8.5 L1196,9.1 L1198,9.5 L1200,8.4 L1202,9.0 L1204,9.4 L1206,9.7 L1208,8.6 L1210,9.2 L1212,9.5 L1214,9.8 L1216,8.7 L1218,8.9 L1220,9.2 L1222,9.3 L1224,7.1 L1226,7.8 L1228,8.4 L1230,5.1 L1232,6.5 L1234,7.5 L1236,8.1 L1238,5.7 L1240,6.9 L1240,15.1 L1238,16.3 L1236,13.9 L1234,14.5 L1232,15.5 L1230,16.9 L1228,13.6 L1226,14.2 L1224,14.9 L1222,12.7 L1220,12.8 L1218,13.1 L1216,13.3 L1214,12.2 L1212,12.5 L1210,12.8 L1208,13.4 L1206,12.3 L1204,12.6 L1202,13.0 L1200,13.6 L1198,12.5 L1196,12.9 L1194,13.5 L1192,12.4 L1190,12.7 L1188,13.1 L1186,13.9 L1184,12.6 L1182,13.1 L1180,13.9 L1178,14.4 L1176,12.5 L1174,12.9 L1172,13.4 L1170,14.2 L1168,12.5 L1166,12.8 L1164,13.3 L1162,12.2 L1160,12.5 L1158,12.9 L1156,13.5 L1154,12.3 L1152,12.5 L1150,13.0 L1148,13.8 L1146,12.6 L1144,12.8 L1142,13.3 L1140,14.0 L1138,12.5 L1136,12.9 L1134,13.5 L1132,12.3 L1130,12.6 L1128,13.0 L1126,13.9 L1124,12.8 L1122,13.2 L1120,13.6 L1118,14.1 L1116,12.7 L1114,13.0 L1112,13.3 L1110,14.0 L1108,12.4 L1106,12.8 L1104,13.3 L1102,12.3 L1100,12.6 L1098,13.0 L1096,13.6 L1094,12.3 L1092,12.5 L1090,12.9 L1088,13.5 L1086,12.1 L1084,12.4 L1082,12.7 L1080,13.2 L1078,12.3 L1076,12.6 L1074,13.3 L1072,12.5 L1070,12.7 L1068,13.1 L1066,13.7 L1064,12.2 L1062,12.4 L1060,12.7 L1058,13.2 L1056,12.3 L1054,12.6 L1052,13.0 L1050,13.6 L1048,12.5 L1046,12.8 L1044,13.4 L1042,12.4 L1040,12.7 L1038,13.0 L1036,13.7 L1034,12.4 L1032,12.8 L1030,13.4 L1028,14.0 L1026,12.4 L1024,12.8 L1022,13.4 L1020,14.6 L1018,12.6 L1016,12.7 L1014,13.0 L1012,12.2 L1010,12.4 L1008,12.8 L1006,13.3 L1004,12.4 L1002,12.7 L1000,13.3 L998,14.2 L996,12.7 L994,13.0 L992,13.6 L990,14.4 L988,12.6 L986,13.0 L984,13.6 L982,12.3 L980,12.6 L978,13.0 L976,13.6 L974,12.3 L972,12.5 L970,12.8 L968,13.4 L966,12.6 L964,13.2 L962,13.5 L960,14.1 L958,12.5 L956,12.9 L954,13.4 L952,12.2 L950,12.4 L948,12.7 L946,13.1 L944,12.2 L942,12.4 L940,12.8 L938,13.2 L936,12.2 L934,12.4 L932,12.7 L930,13.2 L928,12.6 L926,13.1 L924,13.7 L922,12.4 L920,12.7 L918,13.2 L916,13.9 L914,12.5 L912,12.6 L910,12.8 L908,13.3 L906,12.2 L904,12.5 L902,12.9 L900,13.4 L898,12.3 L896,12.6 L894,13.0 L892,12.1 L890,12.4 L888,12.9 L886,13.3 L884,12.3 L882,12.5 L880,12.9 L878,13.4 L876,12.3 L874,12.6 L872,13.1 L870,13.7 L868,12.3 L866,12.6 L864,13.0 L862,12.2 L860,12.4 L858,12.7 L856,13.2 L854,12.2 L852,12.4 L850,12.8 L848,13.2 L846,12.3 L844,12.6 L842,13.1 L840,13.7 L838,12.6 L836,13.1 L834,13.9 L832,12.3 L830,12.4 L828,12.7 L826,13.2 L824,12.1 L822,12.3 L820,12.6 L818,13.0 L816,12.2 L814,12.5 L812,13.1 L810,13.9 L808,12.7 L806,13.0 L804,13.3 L802,12.1 L800,12.3 L798,12.7 L796,13.1 L794,12.3 L792,12.5 L790,12.8 L788,13.3 L786,12.4 L784,12.7 L782,13.1 L780,13.8 L778,12.6 L776,13.0 L774,13.7 L772,12.1 L770,12.4 L768,12.6 L766,12.9 L764,12.2 L762,12.5 L760,12.9 L758,13.4 L756,12.2 L754,12.4 L752,12.8 L750,13.3 L748,12.4 L746,12.7 L744,13.1 L742,12.4 L740,12.8 L738,13.3 L736,14.3 L734,12.5 L732,12.7 L730,13.1 L728,13.8 L726,12.6 L724,13.0 L722,13.6 L720,14.5 L718,12.6 L716,13.2 L714,14.1 L712,12.6 L710,13.1 L708,13.4 L706,13.8 L704,12.7 L702,12.9 L700,13.2 L698,13.5 L696,12.4 L694,12.8 L692,13.3 L690,14.0 L688,12.4 L686,12.7 L684,13.2 L682,12.2 L680,12.4 L678,12.7 L676,13.2 L674,12.4 L672,12.7 L670,13.2 L668,13.9 L666,12.3 L664,12.6 L662,13.0 L660,13.6 L658,12.3 L656,12.6 L654,13.1 L652,12.1 L650,12.3 L648,12.6 L646,13.0 L644,12.4 L642,12.8 L640,13.4 L638,13.8 L636,12.2 L634,12.4 L632,12.8 L630,13.3 L628,12.3 L626,12.6 L624,13.0 L622,12.1 L620,12.3 L618,12.6 L616,13.0 L614,12.6 L612,13.1 L610,13.9 L608,16.1 L606,13.3 L604,13.7 L602,14.2 L600,15.0 L598,12.7 L596,12.9 L594,13.5 L592,12.2 L590,12.5 L588,12.9 L586,13.4 L584,12.4 L582,12.7 L580,13.1 L578,13.8 L576,12.3 L574,12.6 L572,13.0 L570,13.6 L568,12.4 L566,12.8 L564,13.3 L562,12.2 L560,12.4 L558,12.7 L556,13.2 L554,12.4 L552,12.6 L550,13.1 L548,13.7 L546,12.5 L544,13.0 L542,13.8 L540,14.9 L538,12.4 L536,12.5 L534,12.8 L532,12.2 L530,12.4 L528,12.8 L526,13.3 L524,12.2 L522,12.5 L520,12.9 L518,13.6 L516,12.6 L514,12.8 L512,13.4 L510,14.2 L508,12.5 L506,13.0 L504,13.9 L502,12.9 L500,13.5 L498,14.0 L496,14.7 L494,12.6 L492,12.8 L490,13.1 L488,13.3 L486,12.2 L484,12.4 L482,12.7 L480,13.2 L478,12.4 L476,12.8 L474,13.3 L472,12.2 L470,12.4 L468,12.7 L466,13.2 L464,12.2 L462,12.4 L460,12.8 L458,13.3 L456,12.4 L454,12.8 L452,13.3 L450,14.1 L448,12.9 L446,13.2 L444,13.6 L442,12.3 L440,12.6 L438,13.0 L436,13.6 L434,12.2 L432,12.5 L430,12.8 L428,13.4 L426,12.5 L424,12.8 L422,13.3 L420,14.0 L418,12.2 L416,12.5 L414,12.9 L412,12.1 L410,12.3 L408,12.6 L406,13.2 L404,12.6 L402,13.2 L400,13.8 L398,14.4 L396,12.4 L394,12.6 L392,13.0 L390,13.6 L388,12.4 L386,12.8 L384,13.3 L382,12.1 L380,12.3 L378,12.5 L376,12.9 L374,12.4 L372,12.8 L370,13.3 L368,14.0 L366,12.5 L364,12.9 L362,13.5 L360,14.3 L358,12.6 L356,13.1 L354,13.5 L352,12.4 L350,12.7 L348,13.1 L346,13.8 L344,12.2 L342,12.4 L340,12.8 L338,13.3 L336,12.4 L334,12.9 L332,13.2 L330,13.6 L328,12.2 L326,12.4 L324,12.8 L322,12.2 L320,12.4 L318,12.7 L316,13.2 L314,12.5 L312,12.8 L310,13.4 L308,14.3 L306,13.0 L304,13.3 L302,13.7 L300,14.2 L298,12.5 L296,12.8 L294,13.4 L292,12.2 L290,12.5 L288,12.8 L286,13.3 L284,12.4 L282,12.7 L280,13.1 L278,13.8 L276,12.2 L274,12.5 L272,12.9 L270,13.3 L268,12.4 L266,12.7 L264,13.1 L262,12.2 L260,12.4 L258,12.8 L256,13.3 L254,12.5 L252,12.9 L250,13.5 L248,14.5 L246,12.2 L244,12.4 L242,12.7 L240,13.1 L238,12.3 L236,12.6 L234,13.1 L232,12.2 L230,12.4 L228,12.7 L226,13.2 L224,12.2 L222,12.4 L220,12.8 L218,13.2 L216,12.2 L214,12.5 L212,12.9 L210,13.3 L208,12.6 L206,13.1 L204,13.7 L202,12.4 L200,12.8 L198,14.0 L196,14.7 L194,12.6 L192,12.7 L190,12.9 L188,13.2 L186,12.2 L184,12.5 L182,12.8 L180,13.4 L178,12.4 L176,12.8 L174,13.3 L172,12.1 L170,12.3 L168,12.6 L166,13.0 L164,12.4 L162,12.7 L160,13.2 L158,13.8 L156,12.3 L154,12.6 L152,12.9 L150,13.5 L148,12.7 L146,13.1 L144,13.8 L142,12.4 L140,12.7 L138,13.2 L136,13.9 L134,12.4 L132,12.7 L130,13.1 L128,13.8 L126,12.5 L124,12.9 L122,13.5 L120,14.6 L118,12.4 L116,12.6 L114,13.0 L112,12.4 L110,12.7 L108,13.1 L106,13.8 L104,12.4 L102,12.7 L100,13.2 L98,14.0 L96,12.7 L94,13.5 L92,14.1 L90,14.8 L88,12.7 L86,13.0 L84,13.6 L82,12.4 L80,12.7 L78,13.2 L76,13.9 L74,12.4 L72,12.7 L70,13.2 L68,13.8 L66,12.4 L64,12.7 L62,13.2 L60,13.9 L58,12.3 L56,12.6 L54,13.1 L52,12.4 L50,12.7 L48,13.1 L46,13.8 L44,12.3 L42,12.6 L40,13.1 L38,13.7 L36,12.4 L34,12.8 L32,13.3 L30,14.0 L28,12.3 L26,12.7 L24,13.1 L22,12.1 L20,12.3 L18,12.6 L16,13.1 L14,12.4 L12,12.7 L10,13.2 L8,14.1 L6,13.0 L4,14.2 L2,15.6 L0,17.1 Z" fill="#9be0b8" fill-opacity=".55"/><path d="M0,4.0 L2,4.0 L4,5.4 L6,8.4 L8,11.0 L10,12.0 L12,12.4 L14,12.7 L16,12.9 L18,12.9 L20,13.0 L22,13.0 L24,13.0 L26,13.0 L28,13.0 L30,13.0 L32,13.0 L34,13.0 L36,13.0 L38,13.0 L40,13.0 L42,13.0 L44,13.0 L46,13.0 L48,13.0 L50,13.0 L52,12.5 L54,10.6 L56,11.0 L58,12.0 L60,12.6 L62,12.8 L64,12.9 L66,12.9 L68,13.0 L70,13.0 L72,13.0 L74,13.0 L76,13.0 L78,13.0 L80,13.0 L82,13.0 L84,13.0 L86,13.0 L88,11.5 L90,9.8 L92,8.8 L94,8.6 L96,10.3 L98,11.6 L100,12.4 L102,12.7 L104,12.8 L106,12.9 L108,13.0 L110,13.0 L112,13.0 L114,13.0 L116,13.0 L118,11.5 L120,10.3 L122,11.4 L124,12.3 L126,12.6 L128,12.8 L130,12.9 L132,12.9 L134,13.0 L136,12.5 L138,12.8 L140,12.9 L142,12.9 L144,13.0 L146,13.0 L148,13.0 L150,13.0 L152,13.0 L154,12.4 L156,12.6 L158,12.8 L160,12.9 L162,12.9 L164,13.0 L166,13.0 L168,13.0 L170,13.0 L172,13.0 L174,13.0 L176,13.0 L178,13.0 L180,13.0 L182,13.0 L184,13.0 L186,13.0 L188,11.5 L190,9.8 L192,8.8 L194,7.5 L196,6.9 L198,6.3 L200,10.1 L202,11.2 L204,12.2 L206,12.6 L208,12.8 L210,12.9 L212,12.5 L214,12.8 L216,12.9 L218,12.9 L220,12.5 L222,12.7 L224,12.8 L226,12.9 L228,13.0 L230,13.0 L232,13.0 L234,13.0 L236,13.0 L238,13.0 L240,13.0 L242,13.0 L244,13.0 L246,11.5 L248,9.8 L250,10.9 L252,11.7 L254,12.3 L256,12.7 L258,12.9 L260,12.9 L262,13.0 L264,13.0 L266,13.0 L268,13.0 L270,11.5 L272,10.6 L274,11.8 L276,12.4 L278,12.6 L280,12.8 L282,12.9 L284,12.9 L286,13.0 L288,13.0 L290,13.0 L292,13.0 L294,13.0 L296,13.0 L298,13.0 L300,12.5 L302,10.6 L304,9.5 L306,8.3 L308,10.9 L310,11.9 L312,12.4 L314,12.7 L316,12.8 L318,12.9 L320,13.0 L322,13.0 L324,13.0 L326,13.0 L328,13.0 L330,13.0 L332,11.5 L334,10.2 L336,11.8 L338,12.3 L340,12.7 L342,12.8 L344,12.9 L346,13.0 L348,13.0 L350,13.0 L352,13.0 L354,11.9 L356,10.6 L358,11.6 L360,12.4 L362,12.7 L364,12.8 L366,12.9 L368,12.9 L370,13.0 L372,13.0 L374,13.0 L376,13.0 L378,13.0 L380,13.0 L382,13.0 L384,13.0 L386,13.0 L388,13.0 L390,13.0 L392,13.0 L394,13.0 L396,11.5 L398,9.5 L400,8.3 L402,8.4 L404,10.2 L406,11.6 L408,12.4 L410,12.7 L412,12.8 L414,12.9 L416,13.0 L418,13.0 L420,13.0 L422,13.0 L424,12.6 L426,12.8 L428,12.9 L430,13.0 L432,13.0 L434,13.0 L436,13.0 L438,13.0 L440,13.0 L442,13.0 L444,12.5 L446,10.6 L448,9.5 L450,11.5 L452,12.1 L454,12.6 L456,12.8 L458,12.9 L460,12.9 L462,13.0 L464,13.0 L466,13.0 L468,13.0 L470,13.0 L472,13.0 L474,13.0 L476,13.0 L478,13.0 L480,13.0 L482,13.0 L484,13.0 L486,13.0 L488,11.9 L490,9.8 L492,8.5 L494,7.8 L496,6.7 L498,6.3 L500,5.7 L502,6.5 L504,9.1 L506,11.3 L508,12.0 L510,12.6 L512,12.8 L514,12.9 L516,11.4 L518,10.1 L520,10.8 L522,11.7 L524,12.4 L526,12.7 L528,12.8 L530,12.9 L532,13.0 L534,13.0 L536,13.0 L538,11.0 L540,9.5 L542,10.2 L544,11.8 L546,12.4 L548,12.7 L550,12.8 L552,12.9 L554,11.9 L556,12.3 L558,12.7 L560,12.8 L562,12.9 L564,13.0 L566,12.4 L568,12.7 L570,12.9 L572,12.9 L574,13.0 L576,13.0 L578,13.0 L580,13.0 L582,13.0 L584,13.0 L586,13.0 L588,13.0 L590,13.0 L592,13.0 L594,13.0 L596,13.0 L598,11.5 L600,9.5 L602,8.5 L604,7.3 L606,6.6 L608,6.1 L610,10.0 L612,11.2 L614,12.2 L616,12.6 L618,12.8 L620,12.5 L622,12.7 L624,12.8 L626,12.9 L628,13.0 L630,13.0 L632,13.0 L634,13.0 L636,13.0 L638,11.5 L640,9.8 L642,10.5 L644,11.9 L646,12.4 L648,12.7 L650,12.9 L652,12.9 L654,12.5 L656,12.7 L658,12.8 L660,12.9 L662,13.0 L664,13.0 L666,13.0 L668,13.0 L670,13.0 L672,13.0 L674,13.0 L676,13.0 L678,12.7 L680,12.9 L682,12.9 L684,13.0 L686,13.0 L688,13.0 L690,13.0 L692,13.0 L694,13.0 L696,13.0 L698,11.9 L700,9.8 L702,8.5 L704,7.5 L706,6.9 L708,6.3 L710,5.7 L712,6.5 L714,9.7 L716,11.0 L718,12.0 L720,12.6 L722,12.8 L724,12.9 L726,12.9 L728,13.0 L730,13.0 L732,12.4 L734,11.0 L736,11.0 L738,12.1 L740,12.5 L742,12.8 L744,12.9 L746,12.9 L748,13.0 L750,13.0 L752,13.0 L754,13.0 L756,13.0 L758,13.0 L760,13.0 L762,13.0 L764,13.0 L766,13.0 L768,11.9 L770,10.6 L772,11.8 L774,12.3 L776,12.7 L778,12.8 L780,12.9 L782,13.0 L784,13.0 L786,13.0 L788,13.0 L790,13.0 L792,13.0 L794,12.5 L796,12.7 L798,12.8 L800,12.9 L802,13.0 L804,12.4 L806,10.6 L808,9.4 L810,9.0 L812,10.6 L814,11.9 L816,12.5 L818,12.7 L820,12.9 L822,12.9 L824,13.0 L826,13.0 L828,13.0 L830,12.4 L832,10.6 L834,10.0 L836,11.2 L838,12.1 L840,12.6 L842,12.8 L844,12.9 L846,12.9 L848,13.0 L850,13.0 L852,13.0 L854,13.0 L856,13.0 L858,13.0 L860,13.0 L862,12.5 L864,12.7 L866,12.8 L868,12.9 L870,13.0 L872,13.0 L874,13.0 L876,13.0 L878,13.0 L880,13.0 L882,13.0 L884,11.5 L886,10.2 L888,9.5 L890,11.2 L892,12.1 L894,12.4 L896,12.7 L898,12.9 L900,12.9 L902,13.0 L904,13.0 L906,13.0 L908,13.0 L910,12.5 L912,10.6 L914,9.5 L916,11.5 L918,12.1 L920,12.6 L922,12.8 L924,12.9 L926,12.9 L928,13.0 L930,13.0 L932,13.0 L934,13.0 L936,13.0 L938,13.0 L940,13.0 L942,13.0 L944,13.0 L946,13.0 L948,13.0 L950,13.0 L952,13.0 L954,13.0 L956,13.0 L958,13.0 L960,13.0 L962,11.9 L964,9.8 L966,10.9 L968,11.7 L970,12.4 L972,12.7 L974,11.9 L976,12.3 L978,12.7 L980,12.9 L982,12.9 L984,13.0 L986,13.0 L988,13.0 L990,13.0 L992,13.0 L994,13.0 L996,11.9 L998,10.2 L1000,10.9 L1002,11.9 L1004,12.4 L1006,12.7 L1008,12.8 L1010,12.9 L1012,13.0 L1014,12.4 L1016,11.0 L1018,9.4 L1020,9.0 L1022,10.9 L1024,11.9 L1026,12.4 L1028,12.7 L1030,12.3 L1032,12.6 L1034,12.8 L1036,12.9 L1038,13.0 L1040,12.4 L1042,12.3 L1044,12.6 L1046,12.8 L1048,12.9 L1050,13.0 L1052,13.0 L1054,13.0 L1056,13.0 L1058,13.0 L1060,13.0 L1062,13.0 L1064,13.0 L1066,13.0 L1068,13.0 L1070,12.5 L1072,10.6 L1074,9.5 L1076,11.5 L1078,12.2 L1080,12.6 L1082,12.8 L1084,12.9 L1086,12.9 L1088,13.0 L1090,13.0 L1092,13.0 L1094,13.0 L1096,13.0 L1098,13.0 L1100,13.0 L1102,13.0 L1104,13.0 L1106,13.0 L1108,13.0 L1110,13.0 L1112,13.0 L1114,11.5 L1116,9.8 L1118,8.5 L1120,7.5 L1122,6.9 L1124,7.3 L1126,10.1 L1128,11.5 L1130,12.2 L1132,12.6 L1134,12.8 L1136,12.9 L1138,12.9 L1140,13.0 L1142,13.0 L1144,12.4 L1146,11.0 L1148,10.0 L1150,11.5 L1152,12.2 L1154,12.6 L1156,12.8 L1158,12.9 L1160,12.9 L1162,13.0 L1164,13.0 L1166,13.0 L1168,13.0 L1170,13.0 L1172,13.0 L1174,13.0 L1176,13.0 L1178,11.0 L1180,9.5 L1182,10.7 L1184,11.8 L1186,12.3 L1188,12.7 L1190,12.8 L1192,12.9 L1194,13.0 L1196,13.0 L1198,13.0 L1200,13.0 L1202,13.0 L1204,13.0 L1206,13.0 L1208,13.0 L1210,13.0 L1212,13.0 L1214,13.0 L1216,11.5 L1218,9.5 L1220,8.3 L1222,7.3 L1224,6.7 L1226,6.0 L1228,5.6 L1230,5.2 L1232,4.9 L1234,4.8 L1236,4.6 L1238,4.4 L1240,4.3" fill="none" stroke="#e8edf7" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg></div>
+  <i class="mph" style="left:52.903%"></i>
+</div>
+  </div>
+  <span class="num mark-n" style="left:90px;top:6px">10</span>
+</section>
+
+<aside class="panel inspector" aria-label="Inspector: scene 7">
+  <div class="insp-h">
+    <div class="r1"><h2>Scene 7</h2><span class="pill sm">The reason</span><span class="ml-auto"></span>
+      <span class="lockbtn tip left" data-tip="Lock: the AI will not change this scene"><svg class="ico s14" aria-hidden="true"><use href="#i-unlock"/></svg></span><span class="lockbtn tip left" data-tip="Split, merge, move, regenerate with a note"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></div>
+    <div class="meta">1:00.8 &ndash; 1:11.2 &middot; 10.4 s &middot; sentences 16&ndash;17</div>
+  </div>
+  <div class="scroll" style="flex:1">
+    <div class="isec"><div class="isec-h"><svg class="ico s12 chev" aria-hidden="true"><use href="#i-chev-down"/></svg><svg class="ico s14" aria-hidden="true"><use href="#i-mic"/></svg><b>Narration</b><span class="ml-auto lockbtn tip left" data-tip="Locked: these sentences stay together" style="color:#cfd6e4"><svg class="ico s12" aria-hidden="true"><use href="#i-lock"/></svg></span></div>
+      <div class="isec-b">
+        <div class="sent"><span class="sn">16</span><span>When he visited, she finally told him why.<span class="tm">1:00.8 &middot; 2.8 s</span></span></div>
+        <div class="splitline"><span>Split here</span></div>
+        <div class="sent"><span class="sn">17</span><span>Fifty years earlier, a stranger had paid for her groceries on the worst day of her life.<span class="tm">1:04.1 &middot; 5.5 s</span></span></div>
+        <span class="faint small">Words come from the script. Re-recording a sentence happens in the Edit room.</span>
+      </div></div>
+    <div class="isec"><div class="isec-h"><svg class="ico s12 chev" aria-hidden="true"><use href="#i-chev-down"/></svg><svg class="ico s14" aria-hidden="true"><use href="#i-camera"/></svg><b>Picture &amp; shot</b><span class="ml-auto lockbtn tip left" data-tip="Lock the picture and prompt" style="color:#cfd6e4"><svg class="ico s12" aria-hidden="true"><use href="#i-lock"/></svg></span></div>
+      <div class="isec-b">
+        <div class="bigpic"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg><div class="popup top-left ">Fifty years earlier</div><span class="ov"><span class="pill ok sm"><span class="dot"></span>Picture check passed &middot; 8/10</span></span><span class="tries">Try 1 of 1</span></div>
+        <div class="btnrow" style="display:flex;gap:6px;align-items:center"><span class="btn sm tip below" data-tip="Makes a new picture with your note. About $0.03."><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg>New picture</span><span class="btn sm"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg>Upload</span><span class="faint small ml-auto">Other tries (0)</span></div>
+        <span class="flbl">Prompt</span>
+        <div class="textarea"><span class="prefix">Style guide added</span>An elderly woman in a hospital bed by a window at golden hour, a young man sitting beside her listening, warm light, shallow depth of field</div>
+        <div class="frow"><span class="flbl">Shot</span><div class="chips"><span class="chip sm">Wide</span><span class="chip sm">Medium</span><span class="chip sm on">Close-up</span><span class="chip sm">Detail</span></div></div>
+        <div class="frow"><span class="flbl">Angle</span><div class="chips"><span class="chip sm on">Eye level</span><span class="chip sm">Low</span><span class="chip sm">High</span><span class="chip sm">Top-down</span></div></div>
+        <div class="frow"><span class="flbl">Light</span><div class="chips"><span class="chip sm on">Warm window light</span><span class="chip sm">Dusk</span><span class="chip sm">Lamp</span></div></div>
+        <div class="frow"><span class="flbl">Cast</span><div class="chips"><span class="chip sm"><span class="tagav" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</span>Ruth (81)</span><span class="chip sm"><span class="tagav" style="background:linear-gradient(135deg,#86ad9e,#2e4a40)" title="Leo">L</span>Leo</span><span class="chip sm"><span class="tagav place" style="background:linear-gradient(135deg,#a9d1c4,#2e4a44)" title="St. Mary&#x27;s hospital">H</span>St. Mary&#x27;s hospital</span><span class="chip sm"><svg class="ico s12" aria-hidden="true"><use href="#i-plus"/></svg>Add</span></div></div>
+        <div class="frow"><span class="flbl">Pinned</span><div class="refs"><span class="r" title="Pinned: Ruth (81) reference"><svg class="" viewBox="40.00 38.00 48.00 27.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art12" width="160" height="90"/></svg></span><span class="r" title="Pinned: St. Mary's window light"><svg class="" viewBox="6.00 6.00 52.00 29.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg></span><span class="r add" title="Pin a reference picture"><svg class="ico s14" aria-hidden="true"><use href="#i-plus"/></svg></span></div></div>
+      </div></div>
+    <div class="isec"><div class="isec-h"><svg class="ico s12 chev" aria-hidden="true"><use href="#i-chev-down"/></svg><svg class="ico s14" aria-hidden="true"><use href="#i-popup"/></svg><b>Popup</b><span class="edited-dot" title="Changed by Imran"></span></div>
+      <div class="isec-b">
+        <div class="field big">Fifty years earlier<span class="counter">3 / 6 words</span></div>
+        <div style="display:flex;gap:8px;align-items:center"><span class="field" style="flex:1">Brand yellow box<svg class="ico s12" aria-hidden="true"><use href="#i-chev-down"/></svg></span><span class="posgrid" title="Position: top left"><i class="on"></i><i class="x"></i><i></i><i class="x"></i><i></i><i class="x"></i><i></i><i class="x"></i><i></i></span></div>
+        <span class="faint small">Appears 0.3 s after sentence 17 starts &middot; shows 4.0 s &middot; slides in</span>
+      </div></div>
+    <div class="isec closed"><div class="isec-h"><svg class="ico s12 chev" aria-hidden="true"><use href="#i-chev-down"/></svg><svg class="ico s14" aria-hidden="true"><use href="#i-move"/></svg><b>Motion</b><span class="sum">Slow push in &middot; ease in and out</span></div></div>
+    <div class="isec closed"><div class="isec-h"><svg class="ico s12 chev" aria-hidden="true"><use href="#i-chev-down"/></svg><svg class="ico s14" aria-hidden="true"><use href="#i-blend"/></svg><b>Transition out</b><span class="sum">Light leak (warm) &middot; 0.8 s</span></div></div>
+    <div class="isec closed"><div class="isec-h"><svg class="ico s12 chev" aria-hidden="true"><use href="#i-chev-down"/></svg><svg class="ico s14" aria-hidden="true"><use href="#i-note"/></svg><b>Notes</b><span class="sum">Keep Leo's face out of frame</span></div></div>
+  </div>
+  <span class="num mark-n" style="right:12px;top:44px">9</span>
+</aside>
+</main>
+</div>
+
+<section class="annex" aria-label="Mockup notes"><div class="wrap">
+  <div class="annex-top">
+    <div style="flex:1;min-width:320px"><h1>Storyboard v2: mockup notes</h1>
+      <p>A static mockup of Storyboard v2 at 1440 &times; 900, drawn with HTML, CSS and SVG only (no images). Moment shown: step 6 (pictures ready for review) of &ldquo;Why she paid for strangers&rdquo;; the board is scrolled to the last two sections and scene 7 is selected. Specification: <a href="EDITOR-DESIGN.md">EDITOR-DESIGN.md</a>, section 3. Companion: <a href="mockup-editor.html">Edit room mockup</a>.</p></div>
+    <label class="toggle" for="show-numbers"><span class="sw"></span>Show region numbers</label>
+  </div>
+  <h3>Legend</h3><div class="legend"><div class="lg"><span class="num">1</span><div><b>App rail</b><p>The rest of the app, folded to icons. The storyboard opens full window from the project&#x27;s review panel.</p></div></div><div class="lg"><span class="num">2</span><div><b>Top bar</b><p>The video, the step it is at (6 of 8: pictures), undo, the Storyboard / Timeline switch (Timeline opens at step 7), checks, Regenerate and Approve.</p></div></div><div class="lg"><span class="num">3</span><div><b>Outline</b><p>Story sections with every scene (thumbnail, length, state), Cast &amp; places that keep people and places looking the same, and the channel style.</p></div></div><div class="lg"><span class="num">4</span><div><b>Board toolbar</b><p>Filters (needs work, no popup, locked), card size and Show prompts, which swaps narration for the picture prompt on every card.</p></div></div><div class="lg"><span class="num">5</span><div><b>Story ribbon</b><p>The whole video in one bar, coloured by section. The white bracket is the part of the board on screen; red and white dots are scenes that need you.</p></div></div><div class="lg"><span class="num">6</span><div><b>Section rows</b><p>Each story section is one row of scene cards in reading order, with its length and a Play section button.</p></div></div><div class="lg"><span class="num">7</span><div><b>Connectors</b><p>The transition between two scenes sits on the line that joins them. Hover to see the name, click to pick another; the number is its length.</p></div></div><div class="lg"><span class="num">8</span><div><b>Card states</b><p>Selected (amber outline and number), locked (lock in the header), picture check failed (red edge and the fix), making a new picture (sheen and progress).</p></div></div><div class="lg"><span class="num">9</span><div><b>Inspector</b><p>Everything about the selected scene: narration with split points, picture and shot (size, angle, light, cast, pinned references), popup, motion, transition, notes.</p></div></div><div class="lg"><span class="num">10</span><div><b>Animatic</b><p>Plays the video as it stands, with the recorded voice, popups and captions, plus a mini timeline of scenes, popups, captions, voice and music.</p></div></div></div>
+  <h3>Card states</h3>
+  <div class="mini-cards"><div class="mc-cell">
+<article class="card" aria-label="Scene 3, Leo kept count, 10.8 seconds">
+  <div class="chead"><span class="cn">3</span><span class="ctitle">Leo kept count</span><span class="cdur">10.8 s</span></div>
+  <div class="cf"><div style="position:absolute;inset:6px;border:1px dashed #3a4660;border-radius:5px;padding:24px 10px 8px;font-size:10.5px;line-height:14px;color:var(--cfs-ink-muted);overflow:hidden">Close-up of a worn notebook beside a register with neat tally marks in groups of five, a young man&#x27;s hand holding a pencil, no writing</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Zoom in</span><span class="cst"><span class="pill sm"><span class="dot"></span>Picture not made yet</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Close-up</span><span>Top-down</span><span>Counter light</span></div>
+    <div class="narr">For eleven years, the cashier, a young man named Leo, kept count. Four hundred and twelve carts. Groceries for people she had never met.</div>
+    <div class="pline"><i></i>&ldquo;412 carts in 11 years&rdquo;<em>top right</em></div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#86ad9e,#2e4a40)" title="Leo">L</i></span></div>
+  </div>
+</article><p style="font-size:12px;line-height:17px;margin-top:8px"><b>Plan (step 4).</b> No picture yet: the card shows the prompt in a dashed box. Times are estimates from the word count until the voice exists.</p></div><div class="mc-cell">
+<article class="card sel" aria-current="true" aria-label="Scene 7, Why she paid, 10.4 seconds">
+  <div class="chead"><span class="cn">7</span><span class="ctitle">Why she paid</span><span class="cdur">10.4 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art7" width="160" height="90"/></svg><div class="popup top-left ">Fifty years earlier</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Slow push in</span><span class="cst"><span class="pill ok sm"><span class="dot"></span>Check passed</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Close-up</span><span>Eye level</span><span>Warm window light</span></div>
+    <div class="narr">When he visited, she finally told him why. Fifty years earlier, a stranger had paid for her groceries on the worst day of her life.</div>
+    <div class="pline"><i></i>&ldquo;Fifty years earlier&rdquo;<em>top left</em></div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</i><i class="" style="background:linear-gradient(135deg,#86ad9e,#2e4a40)" title="Leo">L</i><i class=" place" style="background:linear-gradient(135deg,#a9d1c4,#2e4a44)" title="St. Mary&#x27;s hospital">H</i></span><span class="k" title="Notes"><svg class="ico " aria-hidden="true"><use href="#i-note"/></svg>1</span><span class="k" title="Locked fields"><svg class="ico " aria-hidden="true"><use href="#i-lock"/></svg>2</span></div>
+  </div>
+</article><p style="font-size:12px;line-height:17px;margin-top:8px"><b>Selected.</b> Amber outline and number; the inspector shows this scene.</p></div><div class="mc-cell">
+<article class="card" aria-label="Scene 9, Become the stranger, 10.4 seconds">
+  <div class="chead"><span class="cn">9</span><span class="ctitle">Become the stranger</span><span class="cdur">10.4 s</span><svg class="ico s12" aria-hidden="true"><use href="#i-lock"/></svg></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art9" width="160" height="90"/></svg><div class="popup center ">She became the stranger</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Zoom in</span><span class="cst"><span class="pill ok sm"><span class="dot"></span>Approved</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Close-up</span><span>High</span><span>Lamp light</span></div>
+    <div class="narr">She never learned his name. So she decided to become him, one Friday at a time. Every week, for eleven years.</div>
+    <div class="pline"><i></i>&ldquo;She became the stranger&rdquo;<em>centre</em></div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</i></span><span class="k" title="Locked fields"><svg class="ico " aria-hidden="true"><use href="#i-lock"/></svg>5</span></div>
+  </div>
+</article><p style="font-size:12px;line-height:17px;margin-top:8px"><b>Locked.</b> Lock icon in the header row. The AI will not change it when the storyboard is redone.</p></div><div class="mc-cell">
+<article class="card fail" aria-label="Scene 10, The note at register 3, 10.6 seconds">
+  <div class="chead"><span class="cn">10</span><span class="ctitle">The note at register 3</span><span class="cdur">10.6 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art10" width="160" height="90"/></svg><i class="tint"></i>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Pan right</span><span class="cst"><span class="pill fail sm"><span class="dot"></span>Check failed</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Detail</span><span>Eye level</span><span>Morning</span></div>
+    <div class="narr">Leo wrote her story on a sheet of paper and taped it next to register three. By Monday, the whole town had read it. Some read it twice.</div>
+    <div class="pline" style="color:var(--cfs-ink-faint)">No popup</div>
+    <div class="failbox"><span class="pill fail sm">Readable text in the picture</span><span class="btn sm"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg>New picture</span></div>
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#86ad9e,#2e4a40)" title="Leo">L</i><i class=" place" style="background:linear-gradient(135deg,#f2a65a,#7a3f1e)" title="Miller&#x27;s Grocery">M</i></span><span class="k" title="Notes"><svg class="ico " aria-hidden="true"><use href="#i-note"/></svg>1</span></div>
+  </div>
+</article><p style="font-size:12px;line-height:17px;margin-top:8px"><b>Picture check failed.</b> Red edge, the reason and the fix on the card itself.</p></div><div class="mc-cell">
+<article class="card gen" aria-label="Scene 12, Ruth comes home, 11.6 seconds">
+  <div class="chead"><span class="cn">12</span><span class="ctitle">Ruth comes home</span><span class="cdur">11.6 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art12" width="160" height="90"/></svg><div class="sheen"></div><div class="gprog"><i></i></div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Zoom out</span><span class="cst"><span class="pill sm" style="color:#e8edf7"><span class="spin"></span>New picture 1 of 3</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Wide</span><span>Eye level</span><span>Morning light</span></div>
+    <div class="narr">Ruth came home in April. The line is still there every Friday. And nobody waits for a thank-you.</div>
+    <div class="pline" style="color:var(--cfs-ink-faint)">No popup</div>
+    
+    <div class="cfoot"><span class="avs"><i class="" style="background:linear-gradient(135deg,#9fb3d3,#2c4c80)" title="Ruth (81)">R</i><i class=" place" style="background:linear-gradient(135deg,#f2a65a,#7a3f1e)" title="Miller&#x27;s Grocery">M</i></span></div>
+  </div>
+</article><p style="font-size:12px;line-height:17px;margin-top:8px"><b>Making a new picture.</b> Sheen and a progress line; the old picture stays until the new one is accepted.</p></div><div class="mc-cell">
+<article class="card warn" aria-label="Scene 5, Six o&#x27;clock, empty, 9.8 seconds">
+  <div class="chead"><span class="cn">5</span><span class="ctitle">Six o&#x27;clock, empty</span><span class="cdur">9.8 s</span></div>
+  <div class="cf"><svg class="art" viewBox="0.00 0.00 160.00 90.00" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#art5" width="160" height="90"/></svg><div class="popup center ">Then, one Friday, nothing.</div>
+    <span class="cmot"><svg class="ico " aria-hidden="true"><use href="#i-move"/></svg>Hold still</span><span class="cst"><span class="pill ok sm"><span class="dot"></span>Check passed</span></span>
+    <div class="hov"><span class="pb"><svg class="ico " aria-hidden="true"><use href="#i-play"/></svg></span><span class="qa"><span title="New picture"><svg class="ico s14" aria-hidden="true"><use href="#i-refresh"/></svg></span><span title="Replace"><svg class="ico s14" aria-hidden="true"><use href="#i-upload"/></svg></span><span title="More"><svg class="ico s14" aria-hidden="true"><use href="#i-more"/></svg></span></span></div>
+  </div>
+  <div class="cbody">
+    <div class="shot"><span>Wide</span><span>Eye level</span><span>Cold blue</span></div>
+    <div class="narr">Then one Friday in March, six o&#x27;clock came and went. The blue coat never came through the door.</div>
+    <div class="pline"><i></i>&ldquo;Then, one Friday, nothing.&rdquo;<em>centre</em></div>
+    <span class="pill warn sm"><span class="dot"></span>Still for 9.8 s: try a slow drift</span>
+    <div class="cfoot"><span class="avs"><i class=" place" style="background:linear-gradient(135deg,#f2a65a,#7a3f1e)" title="Miller&#x27;s Grocery">M</i></span></div>
+  </div>
+</article><p style="font-size:12px;line-height:17px;margin-top:8px"><b>Tip.</b> Orange edge and chip for advice that does not block, for example a long still scene.</p></div></div>
+  <h3>Transition picker (opens from a connector)</h3>
+  <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+    <div class="pop-demo"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><b style="font-size:12.5px">Transition after scene 7</b><span class="faint small ml-auto">Cinematic pack</span></div>
+      <div class="tg"><span class="t"><i style="background:linear-gradient(90deg,#3c5a82,#c9773a)"></i>Film dissolve</span><span class="t"><i style="background:linear-gradient(90deg,#4e6d96,#b06a36)"></i>Blur dissolve</span><span class="t"><i style="background:radial-gradient(circle,#e8a35a,#1b2a44 70%)"></i>Zoom through</span><span class="t"><i style="background:linear-gradient(90deg,#3c5a82 45%,#e8a35a 55%)"></i>Wipe left</span><span class="t on"><i style="background:radial-gradient(circle at 35% 45%,#ffc478,#7a3f1e 70%)"></i>Light leak</span><span class="t"><i style="background:linear-gradient(90deg,#55709a,#a8714a)"></i>Morph blend</span></div>
+      <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:11.5px"><span>Length <b class="mono">0.8 s</b></span><span class="faint">Longest here: 2.4 s</span></div>
+      <div class="slider"><i></i><b></b><em title="Limit: a quarter of the shorter scene"></em></div>
+      <div style="display:flex;gap:6px;margin-top:10px"><span class="btn sm">Apply to all cuts</span><span class="btn sm">Vary all</span><span class="btn sm primary ml-auto">Done</span></div></div>
+    <p style="max-width:520px">Tiles play the real transition on hover (previews rendered by the renderer itself, so they match the final video). The orange tick on the length slider is the builder's limit, a quarter of the shorter neighbouring scene. "Vary all" picks different transitions for every cut and follows the pack's rules: no repeats on neighbouring cuts, at most one light leak or burn per minute, a dip at the end of a section.</p>
+  </div>
+  <h3>Empty board</h3>
+  <div class="stc" style="max-width:520px"><div class="demo" style="align-items:center;text-align:center;gap:6px;min-height:150px"><span style="color:var(--cfs-ink-faint)"><svg class="ico s18" aria-hidden="true"><use href="#i-grid"/></svg></span><b style="font-size:12.5px">No storyboard yet</b><span class="faint small">The AI is planning the scenes from the approved script (about a minute). Cards appear here as soon as it is done.</span><span class="pbar" style="width:220px;height:4px;border-radius:2px;background:#2a3347;overflow:hidden"><i style="display:block;width:40%;height:100%;background:#e8edf7"></i></span></div></div>
+</div></section>
+</body>
+</html>

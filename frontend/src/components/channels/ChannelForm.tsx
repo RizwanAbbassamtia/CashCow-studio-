@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Archive, Save } from "lucide-react";
+import { Archive, Lock, Save } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { useBlocker, useNavigate, type BlockerFunction } from "react-router";
@@ -40,9 +40,11 @@ export interface ChannelFormProps {
   mode: "new" | "edit";
   /** the saved channel, or defaults for a new one */
   initial: Channel;
+  /** show the setup without Save or Archive and with every field locked (non-admins) */
+  readOnly?: boolean;
 }
 
-export function ChannelForm({ mode, initial }: ChannelFormProps) {
+export function ChannelForm({ mode, initial, readOnly = false }: ChannelFormProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const create = useCreateChannel();
@@ -108,7 +110,7 @@ export function ChannelForm({ mode, initial }: ChannelFormProps) {
           title: `Channel "${saved.channel.name}" created`,
           description: `Saved as channels/${saved.slug}/channel.json in the shared folder.`,
         });
-        navigate(`/channels/${encodeURIComponent(saved.slug)}`, { replace: true });
+        navigate(`/master/channels/${encodeURIComponent(saved.slug)}`, { replace: true });
       } else {
         const saved = await update.mutateAsync({ slug: initial.slug, body: { ...body, slug: initial.slug } });
         reset(channelToForm(saved));
@@ -143,7 +145,7 @@ export function ChannelForm({ mode, initial }: ChannelFormProps) {
         title: `Archived ${initial.channel.name}`,
         description: "The folder was moved to channels/_archived in the shared folder. Nothing was deleted.",
       });
-      navigate("/channels");
+      navigate("/master/channels");
     } catch (error) {
       setArchiveOpen(false);
       toast({ tone: "error", title: "Could not archive the channel", description: errorMessage(error) });
@@ -176,30 +178,44 @@ export function ChannelForm({ mode, initial }: ChannelFormProps) {
           )
         }
         actions={
-          <>
-            {mode === "edit" ? (
-              <Button variant="ghost" icon={<Archive />} onClick={() => setArchiveOpen(true)}>
-                Archive
+          readOnly ? null : (
+            <>
+              {mode === "edit" ? (
+                <Button variant="ghost" icon={<Archive />} onClick={() => setArchiveOpen(true)}>
+                  Archive
+                </Button>
+              ) : null}
+              <Button
+                type="submit"
+                form="channel-form"
+                variant="primary"
+                icon={<Save />}
+                loading={isSubmitting}
+                disabled={mode === "edit" && !isDirty}
+              >
+                {mode === "new" ? "Create channel" : "Save changes"}
               </Button>
-            ) : null}
-            <Button
-              type="submit"
-              form="channel-form"
-              variant="primary"
-              icon={<Save />}
-              loading={isSubmitting}
-              disabled={mode === "edit" && !isDirty}
-            >
-              {mode === "new" ? "Create channel" : "Save changes"}
-            </Button>
-          </>
+            </>
+          )
         }
       >
         <div className="mt-2 flex items-center gap-2">
           <ChannelStatusBadge status={status ?? initial.channel.status} />
+          {readOnly ? (
+            <Badge tone="neutral">
+              <Lock className="size-3" aria-hidden />
+              Read only
+            </Badge>
+          ) : null}
           {isDirty ? <Badge tone="warn">Unsaved changes</Badge> : null}
         </div>
       </PageHeader>
+
+      {readOnly ? (
+        <Notice tone="info" title="You can read this channel">
+          Only an admin can change a channel. Every tab is open for reading; ask an admin if something needs to change.
+        </Notice>
+      ) : null}
 
       {serverMessages.length > 0 ? (
         <Notice tone="fail" title="The channel was not saved">
@@ -217,7 +233,8 @@ export function ChannelForm({ mode, initial }: ChannelFormProps) {
           <div className="px-5">
             <Tabs tabs={tabs} value={activeTab} onChange={setActiveTab} />
           </div>
-          <div className="px-6 py-6">
+          {/* A disabled fieldset locks every box and button inside it at once; the tabs stay usable. */}
+          <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 px-6 py-6">
             <div className={cn(activeTab !== "channel" && "hidden")} role="tabpanel">
               <ChannelTab form={form} mode={mode} onSlugEdited={() => (slugEdited.current = true)} />
             </div>
@@ -239,7 +256,7 @@ export function ChannelForm({ mode, initial }: ChannelFormProps) {
             <div className={cn(activeTab !== "stage_modes" && "hidden")} role="tabpanel">
               <StageModesTab form={form} />
             </div>
-          </div>
+          </fieldset>
           </Card>
         </form>
       </FormProvider>

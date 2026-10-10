@@ -1,10 +1,15 @@
-"""``/api/channels``: the channel files behind the Channel Setup form."""
+"""``/api/channels``: the channel files behind the Channel Setup form.
+
+Anyone signed in can read the channels; creating, changing, archiving a channel and uploading
+a framework file are for admins only (docs/M5A-CONTRACT.md section 1), and each of those is
+written to the activity log.
+"""
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile
 from pydantic import Field
 
 from ..llm.frameworks import check_framework_path
@@ -20,7 +25,7 @@ from ..storage.channel_store import (
     make_slug,
     validate_url,
 )
-from .deps import ChannelStoreDep
+from .deps import AdminUser, ChannelStoreDep, audit
 
 router = APIRouter(prefix="/channels", tags=["channels"])
 
@@ -76,7 +81,9 @@ def validate_channel_url(
 
 
 @router.post("", response_model=Channel, status_code=201)
-def create_channel(body: ChannelCreate, store: ChannelStoreDep) -> Channel:
+def create_channel(
+    body: ChannelCreate, request: Request, admin: AdminUser, store: ChannelStoreDep
+) -> Channel:
     try:
         slug = body.slug or make_slug(body.channel.name)
     except InvalidChannelName as exc:
@@ -84,13 +91,18 @@ def create_channel(body: ChannelCreate, store: ChannelStoreDep) -> Channel:
     channel = Channel.model_validate(body.model_dump(mode="json") | {"slug": slug})
     _check_frameworks(channel)
     try:
-        return store.create(channel)
+        created = store.create(channel)
     except ChannelExists as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except InvalidSlug as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except OSError as exc:
         raise _not_saved(exc) from exc
+    audit(
+        request, admin, "channel.create", channel_slug=created.slug,
+        detail={"name": created.channel.name},
+    )
+    return created
 
 
 @router.get("/{slug}", response_model=Channel)
@@ -108,7 +120,9 @@ def get_channel(slug: str, store: ChannelStoreDep) -> Channel:
 
 
 @router.put("/{slug}", response_model=Channel)
-def update_channel(slug: str, body: Channel, store: ChannelStoreDep) -> Channel:
+def update_channel(
+    slug: str, body: Channel, request: Request, admin: AdminUser, store: ChannelStoreDep
+) -> Channel:
     if body.slug != slug:
         raise HTTPException(
             status_code=422,
@@ -117,25 +131,36 @@ def update_channel(slug: str, body: Channel, store: ChannelStoreDep) -> Channel:
         )
     _check_frameworks(body)
     try:
-        return store.update(slug, body)
+        updated = store.update(slug, body)
     except (ChannelNotFound, InvalidSlug) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ChannelStoreError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except OSError as exc:
         raise _not_saved(exc) from exc
+    audit(
+        request, admin, "channel.update", channel_slug=updated.slug,
+        detail={"name": updated.channel.name},
+    )
+    return updated
 
 
 @router.delete("/{slug}", status_code=204, response_class=Response)
-def archive_channel(slug: str, store: ChannelStoreDep) -> Response:
+def archive_channel(
+    slug: str, request: Request, admin: AdminUser, store: ChannelStoreDep
+) -> Response:
     try:
-        store.archive(slug)
+        destination = store.archive(slug)
     except (ChannelNotFound, InvalidSlug) as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except OSError as exc:
         raise HTTPException(
             status_code=500, detail=f"The channel folder could not be moved: {exc}"
         ) from exc
+    audit(
+        request, admin, "channel.archive", channel_slug=slug,
+        detail={"archived_to": str(destination)},
+    )
     return Response(status_code=204)
 
 
@@ -144,6 +169,8 @@ async def upload_framework(
     slug: str,
     file: Annotated[UploadFile, File()],
     framework_type: Annotated[FrameworkType, Form(alias="type")],
+    request: Request,
+    admin: AdminUser,
     store: ChannelStoreDep,
 ) -> Framework:
     data = await file.read()
@@ -155,7 +182,7 @@ async def upload_framework(
             detail=f"The file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
         )
     try:
-        return store.save_framework(slug, file.filename, data, framework_type)
+        framework = store.save_framework(slug, file.filename, data, framework_type)
     except ChannelNotFound as exc:
         raise _not_found(exc) from exc
     except InvalidSlug as exc:
@@ -164,3 +191,8 @@ async def upload_framework(
         raise HTTPException(
             status_code=500, detail=f"The file could not be saved: {exc}"
         ) from exc
+    audit(
+        request, admin, "channel.update", channel_slug=slug,
+        detail={"framework_uploaded": framework.path, "type": str(framework_type)},
+    )
+    return framework

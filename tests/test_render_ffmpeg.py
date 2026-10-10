@@ -21,6 +21,7 @@ from cashcow_studio.pipeline.stages.edit import (
 )
 from cashcow_studio.render import ffmpeg as ff
 from cashcow_studio.render.presets import load_render_config
+from cashcow_studio.render.scene_clips import zoompan_graph
 from test_render_fixtures import (
     SENTENCES,
     make_ctx,
@@ -90,14 +91,27 @@ def test_filter_graph_shape_for_the_mock_project(render_tmp: Path) -> None:
     assert (plan.width, plan.height) == (1280, 720) and plan.canvas == (2560, 1440)
     assert plan.x264_preset == "ultrafast" and plan.crf == 20
     assert plan.total_s == pytest.approx(timeline.duration_s, abs=1 / 30)
-    # 3 pictures + 2 popups + voice + music = 7 inputs, music looped.
-    assert len(plan.inputs) == 7
-    assert plan.inputs[3][:2] == ["-loop", "1"] and plan.inputs[6][:2] == ["-stream_loop", "-1"]
+    # Transitions v2: the scenes and cuts are clips joined by the concat demuxer (input 0),
+    # then 2 popups + voice + music = 5 inputs, music looped.
+    assert len(plan.inputs) == 5
+    assert plan.inputs[0] == ["-f", "concat", "-safe", "0", "-i", "clips/720p/concat.txt"]
+    assert plan.inputs[1][:2] == ["-loop", "1"] and plan.inputs[4][:2] == ["-stream_loop", "-1"]
+    layout = plan.layout
+    assert [job.number for job in layout.scenes] == [1, 2, 3]
+    assert all(job.renderer == "zoompan" for job in layout.scenes)
+    assert all("zoompan=" in zoompan_graph(job) and "format=gbrp" in zoompan_graph(job)
+               for job in layout.scenes)
+    # The old xfade names are the v2 looks now; 0.4333 s = 13 frames, the end fades to black.
+    assert [(c.number, c.label, c.frames) for c in layout.cuts] == [
+        (1, "film_dissolve", 13), (2, "luma_wipe_left", 13), (3, "fade to black", 18),
+    ]
+    assert layout.total_frames == round(timeline.duration_s * 30)
+    assert sum(job.frames for job in layout.scenes) + sum(c.frames for c in layout.cuts) == (
+        layout.total_frames + sum(hi - lo + 1 for lo, hi in layout.drops)
+    )
     graph = plan.filter_graph
-    assert graph.count("zoompan=") == 3 and graph.count("xfade=") == 2
-    assert "xfade=transition=fade:duration=0.4333:offset=1.7[v1]" in graph
-    assert "xfade=transition=wipeleft:duration=0.4333:offset=3.4[v2]" in graph
-    assert "fade=t=out:st=" in graph and ":color=black[s2]" in graph
+    assert "xfade=" not in graph and "zoompan=" not in graph
+    assert graph.startswith("[0:v]select='not(between(n\\,") and "setpts=N/(30*TB)" in graph
     assert graph.count("overlay=") == 2 and "eof_action=pass" in graph
     assert "pow(max(0\\,1-(t-0.3)/0.35)\\,2)" in graph  # slide_left eases in
     assert "subtitles=filename='" in graph and "\\:/" in graph and "fontsdir='" in graph
@@ -111,7 +125,9 @@ def test_filter_graph_shape_for_the_mock_project(render_tmp: Path) -> None:
     plan = ff.build_plan(timeline, config.proxy, folder=files.folder, config=config,
                          ass_path=ass, captions=False, x264_preset="slow")
     assert plan.x264_preset == "ultrafast" and plan.crf == 30
-    assert (plan.width, plan.height) == (854, 480) and len(plan.inputs) == 4
+    assert (plan.width, plan.height) == (854, 480) and len(plan.inputs) == 2
+    assert plan.layout.clips_dir == "clips/proxy"
+    assert plan.layout.scenes[0].encoding.x264_preset == "ultrafast"
     assert "subtitles=" not in plan.filter_graph and "sidechaincompress" not in plan.filter_graph
     output = plan.output_args()
     assert output[:4] == ["-map", "[vout]", "-map", "[aout]"]
@@ -137,9 +153,12 @@ def test_filter_graph_handles_80_scenes_without_a_long_command_line(render_tmp: 
         "duration_s": clock, "scenes": scenes,
     })
     plan = ff.build_plan(timeline, config.proxy, folder=files.folder, config=config)
-    assert plan.filter_graph.count("xfade=") == 79 and len(plan.inputs) == 81
-    assert len(plan.filter_graph) > 20000  # far beyond a Windows command line; it goes to a file
-    assert plan.total_s == pytest.approx(160.0)
+    layout = plan.layout
+    # 80 scene clips, 79 cuts and the fade at the end, all one concat input (+ the voice).
+    assert len(layout.scenes) == 80 and len(layout.cuts) == 80 and len(plan.inputs) == 2
+    assert len(layout.concat_text().splitlines()) == 1 + 160
+    assert plan.filter_graph.count("between(n") == 2 * 79 + 1  # the overlaps the cuts replace
+    assert layout.total_frames == 80 * 60 and plan.total_s == pytest.approx(160.0)
 
 
 # Real renders ------------------------------------------------------------------------------
@@ -186,7 +205,15 @@ def test_render_proxy_and_720p_with_ffprobe_duration(render_tmp: Path) -> None:
     assert renders["720p"]["width"] == 1280 and renders["720p"]["size_bytes"] > 1000
     assert renders["1080p"]["status"] == "not_rendered"
     assert payload["summary"]["scene_count"] == 3
-    assert payload["summary"]["transitions"] == ["fade", "wipeleft", "fadeblack"]
+    # The fixture's storyboard still says fade / wipeleft / fadeblack: the v2 looks now.
+    assert payload["summary"]["transitions"] == ["film_dissolve", "luma_wipe_left", "dip_black"]
+    assert renders["720p"]["reuse_note"] == "Reused 0 of 3 scene clips."
+    assert payload["render_notes"] == [
+        "Proxy: reused 0 of 3 scene clips and 0 of 3 transitions.",
+        "720p: reused 0 of 3 scene clips and 0 of 3 transitions.",
+    ]
+    clips = sorted(p.name.split(".")[0] for p in (edit / "clips" / "720p").glob("*.mp4"))
+    assert clips == ["cut_01", "cut_02", "cut_03", "scene_01", "scene_02", "scene_03"]
     assert payload["summary"]["caption_cues"] == 3 and payload["summary"]["popup_count"] == 2
     assert [s["image_url"] for s in payload["scenes"]][0].endswith("06_images/scene_01.png")
     assert payload["scenes"][0]["popup_text"] == "Five every morning"
@@ -208,6 +235,7 @@ def test_render_proxy_and_720p_with_ffprobe_duration(render_tmp: Path) -> None:
     log = (edit / "render.log").read_text(encoding="utf-8")
     assert "render proxy -> proxy.mp4" in log and "render 720p -> final_720p.mp4" in log
     assert "exit code 0" in log and "OFL.txt" not in log
+    assert "scene 02: drawn in" in log and "cut 02 (luma_wipe_left, 13 frames): drawn in" in log
 
     # The payload can be rebuilt from the files alone (server restart).
     rebuilt = load_review_payload(files.folder, "p-edit-test", str(files.music_dir))
@@ -336,11 +364,18 @@ def test_render_failures_read_plainly(render_tmp: Path) -> None:
                     "motion": {"preset": "hold", "start_rect": [0, 0, 1024, 576],
                                "end_rect": [0, 0, 1024, 576]}}],
     })
+    # An unknown transition is not an error any more: it is drawn as a film dissolve.
+    assert timeline.scenes[0].transition_out.type == "film_dissolve"
+    # A voice file FFmpeg cannot read makes the assembly pass fail.
+    (files.folder / "05_voice" / "voice.wav").write_bytes(b"not a wave file at all" * 40)
     plan = ff.build_plan(timeline, config.proxy, folder=files.folder, config=config)
     with pytest.raises(ff.RenderError, match="could not render proxy"):
         ff.run_render(plan, files.edit_dir / "bad.mp4", work_dir=files.edit_dir,
                       log_path=files.edit_dir / "render.log")
     assert "exit code" in (files.edit_dir / "render.log").read_text("utf-8")
+    assert not (files.edit_dir / "bad.mp4").exists()
+    # The scene and transition clips made before the failure are kept for the next try.
+    assert len(list((files.edit_dir / "clips" / "proxy").glob("scene_*.mp4"))) == 2
     missing = timeline.model_copy(deep=True)
     missing.scenes[0].image = "06_images/none.png"
     with pytest.raises(ff.RenderError, match="picture for scene 1 is missing"):

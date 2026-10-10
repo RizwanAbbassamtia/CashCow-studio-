@@ -2,11 +2,14 @@ import { ScanSearch, Search, Tv } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
+import { useCan } from "../api/auth";
 import { useChannel, useChannels } from "../api/channels";
 import { ApiError, errorMessage } from "../api/client";
 import { useCreateProject, useJob, jobIsActive } from "../api/projects";
 import { useCandidates, useRefreshResearch, useStartScan } from "../api/research";
 import { useJobLog, useProjectEvents } from "../api/ws";
+import { RunButton } from "../components/auth/Gated";
+import { channelPath, projectPath, researchPath } from "../components/master/routes";
 import { LiveIndicator } from "../components/projects/LiveIndicator";
 import { AiPickCard } from "../components/research/AiPickCard";
 import { CandidatesTable } from "../components/research/CandidatesTable";
@@ -15,18 +18,19 @@ import { CompetitorList } from "../components/research/CompetitorList";
 import { FormatToggle } from "../components/research/FormatToggle";
 import { OwnTopicForm } from "../components/research/OwnTopicForm";
 import { ScanProgress } from "../components/research/ScanProgress";
-import { Button, LinkButton } from "../components/ui/Button";
+import { LinkButton } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LoadingBlock } from "../components/ui/Spinner";
 import { EmptyState, ErrorState, Notice } from "../components/ui/States";
 import { useToast } from "../components/ui/Toast";
 import { formatRelative } from "../lib/format";
+import { DENIED_REASONS } from "../lib/roles";
 import type { ProjectFormat, ProjectSourceInput } from "../types/project";
 import { findPickVideoId } from "../types/research";
 
 /**
- * /research/:slug? - scan all competitors of a channel, see their videos ranked as one list,
+ * /automation/research/:slug? - scan all competitors of a channel, see their videos ranked as one list,
  * and start production from the AI pick, from any row, or from your own topic.
  */
 export function ResearchPage() {
@@ -36,6 +40,7 @@ export function ResearchPage() {
   const channels = useChannels();
   const channel = useChannel(slug);
   const events = useProjectEvents();
+  const mayRun = useCan("run");
 
   const [format, setFormat] = useState<ProjectFormat>("long");
   const [showExcluded, setShowExcluded] = useState(false);
@@ -59,7 +64,7 @@ export function ResearchPage() {
   // Only one channel: open it straight away instead of asking.
   useEffect(() => {
     if (!slug && channels.data?.length === 1) {
-      navigate(`/research/${encodeURIComponent(channels.data[0]!.slug)}`, { replace: true });
+      navigate(researchPath(channels.data[0]!.slug), { replace: true });
     }
   }, [slug, channels.data, navigate]);
 
@@ -93,7 +98,7 @@ export function ResearchPage() {
       {
         onSuccess: (project) => {
           toast({ tone: "success", title: "Production started", description: project.title ? `"${project.title}"` : "Follow the stages on the project page." });
-          navigate(`/projects/${encodeURIComponent(project.id)}`);
+          navigate(projectPath(project.id));
         },
         onError: (error) => toast({ tone: "error", title: "Could not start production", description: errorMessage(error) }),
         onSettled: () => setStarting(null),
@@ -111,7 +116,7 @@ export function ResearchPage() {
   const excludedCount = data?.candidates.filter((candidate) => candidate.excluded_reason).length ?? 0;
   const rankedCount = (data?.candidates.length ?? 0) - excludedCount;
 
-  const picker = <ChannelPicker channels={channels.data ?? []} value={slug} onChange={(next) => navigate(`/research/${encodeURIComponent(next)}`)} className="w-72" />;
+  const picker = <ChannelPicker channels={channels.data ?? []} value={slug} onChange={(next) => navigate(researchPath(next))} className="w-72" />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -126,6 +131,12 @@ export function ResearchPage() {
         }
       />
 
+      {!mayRun ? (
+        <Notice tone="info" title="You can look, but not start videos">
+          {DENIED_REASONS.run}
+        </Notice>
+      ) : null}
+
       {!slug ? (
         <Card>
           {channels.isPending ? (
@@ -138,7 +149,7 @@ export function ResearchPage() {
               title="Create a channel first"
               description="Research works per channel: it scans that channel's competitors. Set one up with at least one competitor."
               action={
-                <LinkButton to="/channels/new" variant="primary">
+                <LinkButton to="/master/channels/new" variant="primary">
                   New channel
                 </LinkButton>
               }
@@ -194,7 +205,7 @@ export function ResearchPage() {
                   title="This channel has no competitors yet"
                   description="Add the channels you want to learn from in the channel setup, then scan them here."
                   action={
-                    <LinkButton to={`/channels/${encodeURIComponent(slug)}`} variant="primary" size="sm">
+                    <LinkButton to={channelPath(slug)} variant="primary" size="sm">
                       Open channel setup
                     </LinkButton>
                   }
@@ -207,9 +218,9 @@ export function ResearchPage() {
                   title="No scan yet"
                   description={`Press Scan now to list the videos of all ${competitors.length} competitors. The first scan of a channel takes a few minutes.`}
                   action={
-                    <Button variant="primary" size="sm" icon={<ScanSearch />} loading={scanning} onClick={() => onScan(false)}>
+                    <RunButton variant="primary" size="sm" icon={<ScanSearch />} loading={scanning} onClick={() => onScan(false)}>
                       Scan now
-                    </Button>
+                    </RunButton>
                   }
                 />
               ) : candidates.isError ? (
@@ -227,7 +238,7 @@ export function ResearchPage() {
                   onUse={(candidate) => start({ kind: "manual_pick", video_id: candidate.video_id }, candidate.video_id)}
                   useLabel="Use this one"
                   busyVideoId={starting && starting !== "ai" && starting !== "topic" ? starting : null}
-                  disabled={create.isPending}
+                  disabled={create.isPending || !mayRun}
                   showExcluded={showExcluded}
                 />
               ) : null}

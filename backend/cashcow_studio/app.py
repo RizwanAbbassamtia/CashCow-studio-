@@ -23,6 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from . import __version__
 from .api import auth, channels, doctor, files, jobs, library, projects, research, system, users, ws
 from .api import settings as settings_api
+from .auth.middleware import AuthMiddleware
 from .config import Settings, load_settings
 from .origin_guard import SameOriginGuard
 from .pipeline.bootstrap import build_engine
@@ -73,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # The guard sits inside CORS: preflights are answered by CORS, every other request that
     # changes something must come from this server's own page or the dev server.
+    app.add_middleware(AuthMiddleware)  # innermost: sign-in check after CORS and the guard
     app.add_middleware(SameOriginGuard, allowed_origins=DEV_ORIGINS)
     app.add_middleware(
         CORSMiddleware,

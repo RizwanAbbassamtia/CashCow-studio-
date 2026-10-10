@@ -138,9 +138,13 @@ async def _project_folder(engine: EngineDep, project_id: str) -> Path:
 # Serving ------------------------------------------------------------------------------------
 
 
-@router.api_route(
-    "/{project_id}/files/{path:path}", methods=["GET", "HEAD"], response_class=FileResponse
-)
+FILE_ROUTE = "/{project_id}/files/{path:path}"
+
+
+# HEAD is its own route, left out of the API description: one route with both methods gives
+# the two operations the same id, which FastAPI warns about every time it builds the docs.
+@router.get(FILE_ROUTE, response_class=FileResponse)
+@router.head(FILE_ROUTE, response_class=FileResponse, include_in_schema=False)
 async def get_project_file(
     project_id: str, path: str, request: Request, engine: EngineDep
 ) -> FileResponse:

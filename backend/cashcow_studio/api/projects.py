@@ -4,6 +4,12 @@ See docs/M1-M2-CONTRACT.md section 1 for the table of endpoints. Every handler i
 so it runs on the event loop that owns the engine's background tasks; the reads that only
 touch files and SQLite (list, get, stage payload, create) run in a worker thread so a long
 project list never freezes the WebSocket stream or the other requests.
+
+Who acts (docs/M5A-CONTRACT.md section 1): every change needs an editor or an admin, and
+approve / redo / skip are stamped with the signed-in person, never a name sent by the page
+(a ``by`` field in the body is ignored). The person's display name goes into the project
+history; the username goes to the activity log and to the engine, which hands it to the
+stages (the export stage records ``export.done`` with it).
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
+from ..auth.middleware import SessionUser
 from ..models.channel import StageMode
 from ..models.project import Project, ProjectCreate, ProjectSummary, StageName
 from ..pipeline.engine import (
@@ -29,7 +36,7 @@ from ..pipeline.engine import (
 )
 from ..storage.channel_store import ChannelNotFound, ChannelStoreError, InvalidSlug
 from ..storage.project_store import ProjectFolderBusy, ProjectNotFound, ProjectStoreError
-from .deps import ChannelStoreDep
+from .deps import ChannelStoreDep, CurrentUser, EditorUser, audit
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
@@ -47,10 +54,10 @@ class ReviewAction(BaseModel):
     ``edits`` are stage specific (docs/M1-M2-CONTRACT.md section 1). On ``approve`` they are
     applied at once; on ``redo`` they are kept for the next run (the script stage reads
     ``locked_paragraph_ids`` from them, so the paragraphs locked in the editor survive a
-    regenerate without an approval in between).
+    regenerate without an approval in between). Who acts comes from the session; a ``by``
+    field from an older page is ignored.
     """
 
-    by: str = ""
     notes: str | None = None
     edits: dict[str, Any] | None = None
 
@@ -81,6 +88,38 @@ class OpenFolderResponse(BaseModel):
     folder: str
 
 
+MAX_AUDIT_NOTE = 500
+
+
+def _review_detail(stage: StageName, body: ReviewAction) -> dict[str, Any]:
+    """What the activity log keeps of a review: the stage, the notes, the edited fields."""
+    detail: dict[str, Any] = {"stage": stage.value}
+    if body.notes and body.notes.strip():
+        detail["notes"] = body.notes.strip()[:MAX_AUDIT_NOTE]
+    if body.edits:
+        detail["edits"] = sorted(str(key) for key in body.edits)
+    return detail
+
+
+async def _audit(
+    request: Request,
+    user: SessionUser,
+    action: str,
+    project: Project,
+    *,
+    detail: dict[str, Any] | None = None,
+) -> None:
+    await asyncio.to_thread(
+        audit,
+        request,
+        user,
+        action,
+        project_id=project.id,
+        channel_slug=project.channel_slug,
+        detail=detail,
+    )
+
+
 def _translate(exc: Exception) -> HTTPException:
     if isinstance(exc, ProjectNotFound):
         return HTTPException(status_code=404, detail=str(exc))
@@ -101,7 +140,11 @@ def _translate(exc: Exception) -> HTTPException:
 
 @router.post("/projects", response_model=Project, status_code=201)
 async def create_project(
-    body: ProjectCreate, engine: EngineDep, channels: ChannelStoreDep
+    body: ProjectCreate,
+    request: Request,
+    user: EditorUser,
+    engine: EngineDep,
+    channels: ChannelStoreDep,
 ) -> Project:
     try:
         channel = channels.get(body.channel_slug)
@@ -111,7 +154,14 @@ async def create_project(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     try:
         project = await asyncio.to_thread(engine.create_project, body, channel)
-        await engine.run(project.id)
+        await _audit(
+            request,
+            user,
+            "project.create",
+            project,
+            detail={"format": project.format, "source": project.source.kind},
+        )
+        await engine.run(project.id, user=user.username)
     except (EngineError, ProjectStoreError, OSError) as exc:
         raise _translate(exc) from exc
     return await asyncio.to_thread(engine.get, project.id)
@@ -149,52 +199,94 @@ async def get_stage_payload(
 
 @router.post("/projects/{project_id}/stage/{stage}/approve", response_model=Project)
 async def approve_stage(
-    project_id: str, stage: StageName, body: ReviewAction, engine: EngineDep
+    project_id: str,
+    stage: StageName,
+    body: ReviewAction,
+    request: Request,
+    user: EditorUser,
+    engine: EngineDep,
 ) -> Project:
     try:
-        return await engine.approve(
-            project_id, stage, by=body.by, notes=body.notes, edits=body.edits
+        project = await engine.approve(
+            project_id,
+            stage,
+            by=user.name,
+            notes=body.notes,
+            edits=body.edits,
+            user=user.username,
         )
     except (EngineError, ProjectStoreError, OSError) as exc:
         raise _translate(exc) from exc
+    await _audit(request, user, "stage.approve", project, detail=_review_detail(stage, body))
+    return project
 
 
 @router.post("/projects/{project_id}/stage/{stage}/redo", response_model=Project)
 async def redo_stage(
-    project_id: str, stage: StageName, body: ReviewAction, engine: EngineDep
+    project_id: str,
+    stage: StageName,
+    body: ReviewAction,
+    request: Request,
+    user: EditorUser,
+    engine: EngineDep,
 ) -> Project:
     try:
-        return await engine.redo(
-            project_id, stage, by=body.by, notes=body.notes, edits=body.edits
+        project = await engine.redo(
+            project_id,
+            stage,
+            by=user.name,
+            notes=body.notes,
+            edits=body.edits,
+            user=user.username,
         )
     except (EngineError, ProjectStoreError, OSError) as exc:
         raise _translate(exc) from exc
+    await _audit(request, user, "stage.redo", project, detail=_review_detail(stage, body))
+    return project
 
 
 @router.post("/projects/{project_id}/stage/{stage}/skip", response_model=Project)
 async def skip_stage(
-    project_id: str, stage: StageName, body: ReviewAction, engine: EngineDep
+    project_id: str,
+    stage: StageName,
+    body: ReviewAction,
+    request: Request,
+    user: EditorUser,
+    engine: EngineDep,
 ) -> Project:
     try:
-        return await engine.skip(project_id, stage, by=body.by, notes=body.notes)
+        project = await engine.skip(
+            project_id, stage, by=user.name, notes=body.notes, user=user.username
+        )
     except (EngineError, ProjectStoreError, OSError) as exc:
         raise _translate(exc) from exc
+    await _audit(request, user, "stage.skip", project, detail=_review_detail(stage, body))
+    return project
 
 
 @router.put("/projects/{project_id}/stage/{stage}/mode", response_model=Project)
 async def set_stage_mode(
-    project_id: str, stage: StageName, body: ModeChange, engine: EngineDep
+    project_id: str,
+    stage: StageName,
+    body: ModeChange,
+    request: Request,
+    user: EditorUser,
+    engine: EngineDep,
 ) -> Project:
     try:
-        return await engine.set_mode(project_id, stage, body.mode)
+        project = await engine.set_mode(project_id, stage, body.mode)
     except (EngineError, ProjectStoreError, OSError) as exc:
         raise _translate(exc) from exc
+    await _audit(
+        request, user, "stage.mode", project, detail={"stage": stage.value, "mode": body.mode}
+    )
+    return project
 
 
 @router.post("/projects/{project_id}/run", response_model=RunResponse, status_code=202)
-async def run_project(project_id: str, engine: EngineDep) -> RunResponse:
+async def run_project(project_id: str, user: EditorUser, engine: EngineDep) -> RunResponse:
     try:
-        project, started = await engine.run(project_id)
+        project, started = await engine.run(project_id, user=user.username)
     except (EngineError, ProjectStoreError, OSError) as exc:
         raise _translate(exc) from exc
     status = project.stages[project.current_stage].status
@@ -232,6 +324,7 @@ def export_folder_of(project: Project) -> Path | None:
 @router.post("/projects/{project_id}/open-folder", response_model=OpenFolderResponse)
 async def open_project_folder(
     project_id: str,
+    _user: CurrentUser,
     engine: EngineDep,
     body: Annotated[OpenFolderRequest | None, Body()] = None,
 ) -> OpenFolderResponse:
@@ -263,11 +356,21 @@ async def open_project_folder(
 
 
 @router.delete("/projects/{project_id}", status_code=204, response_class=Response)
-async def archive_project(project_id: str, engine: EngineDep) -> Response:
+async def archive_project(
+    project_id: str, request: Request, user: EditorUser, engine: EngineDep
+) -> Response:
     try:
-        await engine.archive(project_id)
+        project = await asyncio.to_thread(engine.get, project_id)
+        destination = await engine.archive(project_id)
     except (EngineError, ProjectStoreError, OSError) as exc:
         raise _translate(exc) from exc
+    await _audit(
+        request,
+        user,
+        "project.archive",
+        project,
+        detail={"title": project.title, "archived_to": str(destination)},
+    )
     return Response(status_code=204)
 
 

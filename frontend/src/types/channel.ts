@@ -84,6 +84,44 @@ export type ThumbnailFace = (typeof THUMBNAIL_FACES)[number];
 export const ON_IMAGE_TEXT_OPTIONS = ["app_popups", "none"] as const;
 export type OnImageText = (typeof ON_IMAGE_TEXT_OPTIONS)[number];
 
+/**
+ * The looks a channel can choose for the cuts between pictures: the packs of
+ * config/transitions.yaml (docs/TRANSITIONS-V2-CONTRACT.md section 1). The storyboard AI
+ * only picks transitions from the channel's pack.
+ */
+export const TRANSITION_PACKS = ["cinematic", "clean", "dynamic"] as const;
+export type TransitionPack = (typeof TRANSITION_PACKS)[number];
+export const DEFAULT_TRANSITION_PACK: TransitionPack = "cinematic";
+
+export const TRANSITION_PACK_LABELS: Record<TransitionPack, string> = {
+  cinematic: "Cinematic",
+  clean: "Clean",
+  dynamic: "Dynamic",
+};
+
+/** Same words as the pack descriptions in config/transitions.yaml. */
+export const TRANSITION_PACK_DESCRIPTIONS: Record<TransitionPack, string> = {
+  cinematic: "Soft, filmic cuts. Dissolves, gentle wipes, zooms and the odd warm light leak. Suits stories, history and calm explainers.",
+  clean: "Crisp and modern. Pushes and soft wipes, nothing flashy. Suits tutorials, news and business topics.",
+  dynamic: "Fast and punchy. Whip pans, spins, cube turns and a little glitch. Suits lists, facts and Shorts.",
+};
+
+/** How the camera moves over each picture. A storyboard may override it for one video. */
+export const MOTION_STYLES = ["ken_burns", "parallax"] as const;
+export type MotionStyle = (typeof MOTION_STYLES)[number];
+export const DEFAULT_MOTION_STYLE: MotionStyle = "ken_burns";
+
+export const MOTION_STYLE_LABELS: Record<MotionStyle, string> = {
+  ken_burns: "Ken Burns",
+  parallax: "2.5D parallax",
+};
+
+export const MOTION_STYLE_DESCRIPTIONS: Record<MotionStyle, string> = {
+  ken_burns: "A slow pan and zoom over the flat picture.",
+  parallax:
+    "The picture is split into near and far layers that move at different speeds, like a real camera move. Needs the depth model (Settings > Render); without it the video falls back to Ken Burns.",
+};
+
 export const STAGE_NAMES = [
   "research",
   "title",
@@ -187,6 +225,10 @@ export interface ImageConfig {
   popup_style: string;
   api_key_env: string;
   monthly_budget_images: number | null;
+  /** the transitions the storyboard AI picks from; default "cinematic" */
+  transition_pack: TransitionPack;
+  /** "ken_burns" (default) or "parallax" (2.5D, needs the depth model) */
+  motion_style: MotionStyle;
 }
 
 export interface ThumbnailConfig {
@@ -331,6 +373,8 @@ export function defaultImageConfig(): ImageConfig {
     popup_style: "",
     api_key_env: "",
     monthly_budget_images: null,
+    transition_pack: DEFAULT_TRANSITION_PACK,
+    motion_style: DEFAULT_MOTION_STYLE,
   };
 }
 

@@ -1,13 +1,12 @@
 import { Check, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { useChannel } from "../../api/channels";
 import { errorMessage } from "../../api/client";
 import { useApproveStage, useProject, useRedoStage, useStagePayload } from "../../api/projects";
 import { formatRelative } from "../../lib/format";
 import { findPickVideoId, type Candidate, type ResearchApproveEdits, type ResearchReviewPayload } from "../../types/research";
+import { ReviewButton } from "../auth/Gated";
 import { NotesDialog } from "../projects/NotesDialog";
-import { useReviewerName } from "../projects/useReviewerName";
 import { CandidatesTable } from "../research/CandidatesTable";
 import { Button } from "../ui/Button";
 import { LoadingBlock } from "../ui/Spinner";
@@ -27,8 +26,6 @@ export interface ResearchReviewProps {
 export function ResearchReview({ projectId }: ResearchReviewProps) {
   const { toast } = useToast();
   const project = useProject(projectId);
-  const channel = useChannel(project.data?.channel_slug);
-  const { effective: by } = useReviewerName(channel.data?.reviewer ?? "");
   const status = project.data?.stages.research.status ?? "pending";
   const hasRun = status !== "pending" && status !== "running";
   const payload = useStagePayload<ResearchReviewPayload>(projectId, "research", hasRun);
@@ -80,7 +77,7 @@ export function ResearchReview({ projectId }: ResearchReviewProps) {
   const onApprove = () => {
     const edits: ResearchApproveEdits | undefined = changed && chosenId ? { video_id: chosenId } : undefined;
     approve.mutate(
-      { id: projectId, stage: "research", body: { by, edits: edits as Record<string, unknown> | undefined } },
+      { id: projectId, stage: "research", body: { edits: edits as Record<string, unknown> | undefined } },
       {
         onSuccess: () =>
           toast({
@@ -95,7 +92,7 @@ export function ResearchReview({ projectId }: ResearchReviewProps) {
 
   const onRedo = (notes: string) => {
     redo.mutate(
-      { id: projectId, stage: "research", body: { by, notes } },
+      { id: projectId, stage: "research", body: { notes } },
       {
         onSuccess: () => {
           setRedoOpen(false);
@@ -155,12 +152,12 @@ export function ResearchReview({ projectId }: ResearchReviewProps) {
                 Back to the AI pick
               </Button>
             ) : null}
-            <Button variant="secondary" size="sm" icon={<RotateCcw />} onClick={() => setRedoOpen(true)} disabled={approve.isPending || redo.isPending}>
+            <ReviewButton variant="secondary" size="sm" icon={<RotateCcw />} onClick={() => setRedoOpen(true)} disabled={approve.isPending || redo.isPending}>
               Rescan and pick again
-            </Button>
-            <Button variant="primary" size="sm" icon={<Check />} onClick={onApprove} loading={approve.isPending} disabled={!chosenId || redo.isPending}>
+            </ReviewButton>
+            <ReviewButton variant="primary" size="sm" icon={<Check />} onClick={onApprove} loading={approve.isPending} disabled={!chosenId || redo.isPending}>
               {changed ? "Use my pick and continue" : "Approve the AI pick and continue"}
-            </Button>
+            </ReviewButton>
           </div>
         ) : chosen ? (
           <p className="text-xs text-ink-muted">

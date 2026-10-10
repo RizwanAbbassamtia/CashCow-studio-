@@ -104,7 +104,6 @@ export function useRenderProgress(projectId: string | undefined): RenderProgress
 // ---- mutations ------------------------------------------------------------------------
 
 export interface RenderRequest {
-  by: string;
   /** the presets to render now */
   presets: string[];
   /** the other choices to render with (music, captions, popups) */
@@ -121,14 +120,13 @@ export function renderNote(presets: string[]): string {
 export function useRenderPresets(projectId: string) {
   const update = useProjectCacheUpdate();
   return useMutation({
-    mutationFn: ({ by, presets, edits }: RenderRequest): Promise<Project> =>
-      redoStage(projectId, "edit", { by, notes: renderNote(presets), edits: { ...(edits ?? {}), presets } }),
+    mutationFn: ({ presets, edits }: RenderRequest): Promise<Project> =>
+      redoStage(projectId, "edit", { notes: renderNote(presets), edits: { ...(edits ?? {}), presets } }),
     onSuccess: update,
   });
 }
 
 export interface EditApproveBody {
-  by: string;
   notes?: string;
   edits?: EditApproveEdits;
 }
@@ -138,7 +136,7 @@ export function useApproveEdit(projectId: string) {
   const update = useProjectCacheUpdate();
   return useMutation({
     mutationFn: (body: EditApproveBody): Promise<Project> =>
-      approveStage(projectId, "edit", body as { by: string; notes?: string; edits?: Record<string, unknown> }),
+      approveStage(projectId, "edit", body as { notes?: string; edits?: Record<string, unknown> }),
     onSuccess: update,
   });
 }

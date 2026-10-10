@@ -3,14 +3,27 @@ import { Check, LayoutGrid, RefreshCw, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useBlocker, type BlockerFunction } from "react-router";
 
+import { useChannel } from "../../api/channels";
 import { ApiError, errorMessage } from "../../api/client";
-import { approveStage, redoStage, useProjectCacheUpdate, useStagePayload } from "../../api/projects";
-import { DEFAULT_POPUP_STYLES, parseStoryboardPayload, type SceneLockField, type StoryboardApproveEdits, type StoryboardDoc, type StoryboardScene } from "../../types";
+import { approveStage, redoStage, useProject, useProjectCacheUpdate, useStagePayload } from "../../api/projects";
+import {
+  DEFAULT_POPUP_STYLES,
+  TRANSITION_PACK_DESCRIPTIONS,
+  TRANSITION_PACK_LABELS,
+  parseStoryboardPayload,
+  type SceneLockField,
+  type StoryboardApproveEdits,
+  type StoryboardDoc,
+  type StoryboardScene,
+} from "../../types";
+import { ApprovingAs } from "../auth/ApprovingAs";
+import { ReviewButton } from "../auth/Gated";
 import { Panel } from "../script/Panel";
 import { RegenerateDialog } from "../script/RegenerateDialog";
-import { useReviewer } from "../script/useReviewer";
+import { MotionStyleSwitch } from "../storyboard/MotionStyleSwitch";
 import { SceneCard } from "../storyboard/SceneCard";
 import { SplitSceneDialog } from "../storyboard/SplitSceneDialog";
+import { useTransitionCatalogue } from "../storyboard/transitionCatalogue";
 import {
   checkVariety,
   deleteScene,
@@ -26,7 +39,7 @@ import { VarietyPanel } from "../storyboard/VarietyPanel";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/Dialog";
-import { Input, Textarea } from "../ui/Input";
+import { Textarea } from "../ui/Input";
 import { LoadingBlock } from "../ui/Spinner";
 import { EmptyState, ErrorState } from "../ui/States";
 import { useToast } from "../ui/Toast";
@@ -50,7 +63,6 @@ function withReflow(doc: StoryboardDoc): StoryboardDoc {
  */
 export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
   const { toast } = useToast();
-  const reviewer = useReviewer(projectId);
   const updateCache = useProjectCacheUpdate();
 
   const payloadQuery = useStagePayload<unknown>(projectId, "storyboard");
@@ -103,6 +115,13 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
   const transitions = payload?.transitions ?? [];
   const band = payload?.scene_band_s ?? [8, 12];
   const wpm = draft?.speaking_rate_wpm || 150;
+  // Transitions v2: the channel's pack and motion style (the live channel wins over the payload).
+  const project = useProject(projectId);
+  const channel = useChannel(project.data?.channel_slug);
+  const catalogue = useTransitionCatalogue().data ?? null;
+  const transitionPack = channel.data?.images.transition_pack ?? payload?.transition_pack ?? draft?.transition_pack ?? "cinematic";
+  const channelMotionStyle = channel.data?.images.motion_style ?? payload?.channel_motion_style ?? "ken_burns";
+  const motionStyle = draft?.motion_style ?? channelMotionStyle;
   const popupStyles = useMemo(() => {
     const styles = new Set<string>();
     if (draft?.popup_style) styles.add(draft.popup_style);
@@ -112,7 +131,10 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
     return [...styles];
   }, [payload?.popup_styles, draft?.popup_style, draft?.scenes]);
 
-  const check = useMemo(() => (draft ? checkVariety(draft.scenes, band, transitions, draft.style_guide) : null), [draft, band, transitions]);
+  const check = useMemo(
+    () => (draft ? checkVariety(draft.scenes, band, transitions, draft.style_guide, catalogue) : null),
+    [draft, band, transitions, catalogue],
+  );
   const issuesByScene = useMemo(() => {
     const map = new Map<number, string[]>();
     for (const issue of check?.issues ?? []) map.set(issue.index, [...(map.get(issue.index) ?? []), issue.message]);
@@ -120,8 +142,8 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
   }, [check]);
 
   const approve = useMutation({
-    mutationFn: (body: { by: string; notes?: string; edits?: StoryboardApproveEdits }) =>
-      approveStage(projectId, "storyboard", body as { by: string; notes?: string; edits?: Record<string, unknown> }),
+    mutationFn: (body: { notes?: string; edits?: StoryboardApproveEdits }) =>
+      approveStage(projectId, "storyboard", body as { notes?: string; edits?: Record<string, unknown> }),
     onSuccess: (project) => {
       toast({ tone: "success", title: "Storyboard approved", description: "The voice stage is next." });
       setApproveNotes("");
@@ -139,7 +161,7 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
   });
 
   const redo = useMutation({
-    mutationFn: (notes: string) => redoStage(projectId, "storyboard", { by: reviewer.effective, notes }),
+    mutationFn: (notes: string) => redoStage(projectId, "storyboard", { notes }),
     onSuccess: (project) => {
       setRegenerateIndex(null);
       setRegenerateAllOpen(false);
@@ -192,7 +214,7 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
   const showOverride = savedBlocking || blockedMessage !== null;
 
   const onApprove = () => {
-    const body: { by: string; notes?: string; edits?: StoryboardApproveEdits } = { by: reviewer.effective };
+    const body: { notes?: string; edits?: StoryboardApproveEdits } = {};
     if (approveNotes.trim()) body.notes = approveNotes.trim();
     if (dirty || (overrideGates && showOverride)) {
       body.edits = { storyboard: { ...withReflow(draft), variety: check.variety } };
@@ -234,6 +256,9 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
       aspect={draft.aspect}
       band={band}
       transitions={transitions}
+      format={draft.format}
+      transitionPack={transitionPack}
+      motionStyle={motionStyle}
       motionPresets={payload.motion_presets}
       popupPositions={payload.popup_positions}
       popupStyles={popupStyles}
@@ -273,8 +298,16 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
               {draft.scenes.length} scene{draft.scenes.length === 1 ? "" : "s"}
             </Badge>
             <Badge tone="neutral">about {formatSeconds(totalSeconds)}</Badge>
+            <span title={TRANSITION_PACK_DESCRIPTIONS[transitionPack]}>
+              <Badge tone="neutral">{TRANSITION_PACK_LABELS[transitionPack]} transitions</Badge>
+            </span>
             {draft.model ? <span className="text-xs text-ink-faint">Planned by {draft.model}</span> : null}
             {dirty ? <Badge tone="warn">Unsaved changes</Badge> : null}
+            <MotionStyleSwitch
+              value={draft.motion_style}
+              channelDefault={channelMotionStyle}
+              onChange={(next) => edit((doc) => ({ ...doc, motion_style: next }))}
+            />
           </span>
         }
         actions={
@@ -284,12 +317,12 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
                 Discard changes
               </Button>
             ) : null}
-            <Button variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateAllOpen(true)} disabled={busy}>
+            <ReviewButton variant="secondary" size="sm" icon={<RefreshCw />} onClick={() => setRegenerateAllOpen(true)} disabled={busy}>
               Regenerate storyboard
-            </Button>
-            <Button variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
+            </ReviewButton>
+            <ReviewButton variant="primary" size="sm" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
               {dirty ? "Approve with my edits" : "Approve"}
-            </Button>
+            </ReviewButton>
           </>
         }
       >
@@ -316,10 +349,7 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
 
           <Panel title="Approve" description="Approving saves your edits into storyboard.json and moves the project on to the voice stage.">
             <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1.5">
-                <span className="text-[13px] font-medium text-ink-muted">Your name</span>
-                <Input value={reviewer.name} onChange={(event) => reviewer.setName(event.target.value)} placeholder={reviewer.effective} autoComplete="name" />
-              </label>
+              <ApprovingAs />
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium text-ink-muted">Note for the project log (optional)</span>
                 <Textarea rows={2} value={approveNotes} onChange={(event) => setApproveNotes(event.target.value)} placeholder="Anything the team should know" />
@@ -339,9 +369,9 @@ export function StoryboardBoard({ projectId }: StoryboardBoardProps) {
                   </span>
                 </label>
               ) : null}
-              <Button variant="primary" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
+              <ReviewButton variant="primary" className="w-full" icon={<Check />} loading={approve.isPending} disabled={busy} onClick={onApprove}>
                 {dirty ? "Approve with my edits" : "Approve storyboard"}
-              </Button>
+              </ReviewButton>
             </div>
           </Panel>
         </div>

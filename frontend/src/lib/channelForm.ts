@@ -9,13 +9,17 @@ import type { ApiError } from "../api/client";
 import {
   API_KEY_ENV_PATTERN,
   CHANNEL_STATUSES,
+  DEFAULT_MOTION_STYLE,
+  DEFAULT_TRANSITION_PACK,
   FRAMEWORK_TYPES,
   IMAGE_TOOLS,
   LANGUAGES,
+  MOTION_STYLES,
   ON_IMAGE_TEXT_OPTIONS,
   SLUG_PATTERN,
   STAGE_MODES,
   THUMBNAIL_FACES,
+  TRANSITION_PACKS,
   VIDEO_FORMATS,
   VOICE_TOOLS,
   type Channel,
@@ -176,6 +180,8 @@ export const imagesSchema = z.object({
   popup_style: freeText,
   api_key_env: apiKeyEnv,
   monthly_budget_images: optionalWholeNumber,
+  transition_pack: z.enum(TRANSITION_PACKS),
+  motion_style: z.enum(MOTION_STYLES),
 });
 
 export const thumbnailSchema = z.object({
@@ -235,7 +241,12 @@ export function channelToForm(channel: Channel): ChannelFormValues {
         consented_at: (channel.voice.consent.consented_at ?? "").slice(0, 16),
       },
     },
-    images: { ...channel.images },
+    images: {
+      ...channel.images,
+      // Channels saved before transitions v2 have no pack or motion style yet: use the defaults.
+      transition_pack: channel.images.transition_pack ?? DEFAULT_TRANSITION_PACK,
+      motion_style: channel.images.motion_style ?? DEFAULT_MOTION_STYLE,
+    },
     thumbnail: {
       ...channel.thumbnail,
       template_videos: [...channel.thumbnail.template_videos],

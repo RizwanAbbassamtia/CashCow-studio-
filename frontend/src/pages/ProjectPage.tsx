@@ -2,23 +2,24 @@ import { Archive, ExternalLink, Play, SearchX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
+import { useCan } from "../api/auth";
 import { useChannel } from "../api/channels";
 import { ApiError, errorMessage } from "../api/client";
 import { useArchiveProject, useProject, useRunProject, useSetStageMode } from "../api/projects";
 import { useProjectEvents } from "../api/ws";
+import { RunButton } from "../components/auth/Gated";
+import { channelPath, PROJECTS_PATH } from "../components/master/routes";
 import { CostsCard } from "../components/projects/CostsCard";
 import { FolderCard } from "../components/projects/FolderCard";
 import { LiveIndicator } from "../components/projects/LiveIndicator";
 import { FORMAT_SHORT_LABELS, SOURCE_KIND_LABELS, STAGE_LABELS } from "../components/projects/stageMeta";
 import { StageStatusBadge } from "../components/projects/StageStatusBadge";
 import { StageTimeline } from "../components/projects/StageTimeline";
-import { useReviewerName } from "../components/projects/useReviewerName";
 import { ReviewPanel } from "../components/review/ReviewPanel";
 import { Badge } from "../components/ui/Badge";
-import { Button, LinkButton } from "../components/ui/Button";
+import { LinkButton } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { ConfirmDialog } from "../components/ui/Dialog";
-import { Input } from "../components/ui/Input";
 import { PageHeader } from "../components/ui/PageHeader";
 import { LoadingBlock } from "../components/ui/Spinner";
 import { EmptyState, ErrorState } from "../components/ui/States";
@@ -34,7 +35,7 @@ function DetailsCard({ project, channelName }: { project: Project; channelName: 
       <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-2 text-[13px]">
         <dt className="text-ink-muted">Channel</dt>
         <dd>
-          <Link to={`/channels/${encodeURIComponent(project.channel_slug)}`} className="font-medium text-ink hover:underline">
+          <Link to={channelPath(project.channel_slug)} className="font-medium text-ink hover:underline">
             {channelName}
           </Link>
         </dd>
@@ -72,7 +73,7 @@ function DetailsCard({ project, channelName }: { project: Project; channelName: 
   );
 }
 
-/** /projects/:id - stage timeline, costs, folder and the review panel for the current gate. */
+/** /automation/projects/:id - stage timeline, costs, folder and the review panel for the current gate. */
 export function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -83,7 +84,7 @@ export function ProjectPage() {
   const setMode = useSetStageMode();
   const run = useRunProject();
   const archive = useArchiveProject();
-  const { name, setName, effective } = useReviewerName(channel.data?.reviewer ?? "");
+  const mayRun = useCan("run");
 
   const [selectedStage, setSelectedStage] = useState<StageName | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -117,7 +118,7 @@ export function ProjectPage() {
             title="This project does not exist"
             description="It may have been archived. Archived folders live in _archived inside your projects folder."
             action={
-              <LinkButton to="/projects" variant="secondary">
+              <LinkButton to={PROJECTS_PATH} variant="secondary">
                 Back to projects
               </LinkButton>
             }
@@ -155,7 +156,7 @@ export function ProjectPage() {
       onSuccess: () => {
         setArchiveOpen(false);
         toast({ tone: "success", title: "Project archived", description: "The folder moved to _archived inside your projects folder." });
-        navigate("/projects", { replace: true });
+        navigate(PROJECTS_PATH, { replace: true });
       },
       onError: (error) => toast({ tone: "error", title: "Could not archive the project", description: errorMessage(error) }),
     });
@@ -168,12 +169,8 @@ export function ProjectPage() {
         actions={
           <>
             <LiveIndicator state={events.state} />
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
-              Reviewing as
-              <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={effective} className="h-8 w-32 text-xs" aria-label="Your name for approvals" />
-            </label>
             {canResume ? (
-              <Button
+              <RunButton
                 variant="secondary"
                 size="sm"
                 icon={<Play />}
@@ -187,11 +184,11 @@ export function ProjectPage() {
                 }
               >
                 Resume
-              </Button>
+              </RunButton>
             ) : null}
-            <Button variant="ghost" size="sm" icon={<Archive />} onClick={() => setArchiveOpen(true)}>
+            <RunButton variant="ghost" size="sm" icon={<Archive />} onClick={() => setArchiveOpen(true)}>
               Archive
-            </Button>
+            </RunButton>
           </>
         }
       >
@@ -200,7 +197,7 @@ export function ProjectPage() {
           <Badge tone="neutral">{STAGE_LABELS[data.current_stage]} stage</Badge>
           <Badge tone="neutral">{FORMAT_SHORT_LABELS[data.format]}</Badge>
           <Badge tone="neutral">{data.language}</Badge>
-          <Link to={`/channels/${encodeURIComponent(data.channel_slug)}`} className="text-xs text-ink-muted hover:text-ink hover:underline">
+          <Link to={channelPath(data.channel_slug)} className="text-xs text-ink-muted hover:text-ink hover:underline">
             {channelName}
           </Link>
           {finished ? <Badge tone="ok">Finished</Badge> : null}
@@ -209,7 +206,7 @@ export function ProjectPage() {
 
       <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
         <Card title="Stages" description="Click a stage to see its result. Auto runs on, Review waits for you, Manual waits for your files." flush>
-          <StageTimeline project={data} selected={stage} onSelect={setSelectedStage} onModeChange={onModeChange} modeChanging={modeChanging} />
+          <StageTimeline project={data} selected={stage} onSelect={setSelectedStage} onModeChange={mayRun ? onModeChange : undefined} modeChanging={modeChanging} />
         </Card>
         <div className="flex flex-col gap-6">
           <DetailsCard project={data} channelName={channelName} />
